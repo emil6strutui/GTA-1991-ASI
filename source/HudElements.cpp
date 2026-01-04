@@ -53,15 +53,12 @@ static void DrawRoundedBar(float x, float y, float width, float height,
     if (fillPercent > 0) {
         float fillWidth = width * (fillPercent / 100.0f);
         
-        // Left cap
+        // Left cap (smooth curve-following fill)
         if (fillWidth > 0) {
-            if (fillWidth >= radius) {
-                Drawing::Semicircle(x + radius, y + radius, radius, PI * 0.5f, PI * 1.5f, SEGMENTS, fgColor);
-            } else {
-                float fillRatio = fillWidth / radius;
-                float halfArc = (PI * 0.5f) * fillRatio;
-                Drawing::Semicircle(x + radius, y + radius, radius, PI - halfArc, PI + halfArc, SEGMENTS, fgColor);
-            }
+            float leftCapFill = (fillWidth >= radius) ? radius : fillWidth;
+            float capCenterX = x + radius;
+            float centerY = y + radius;
+            Drawing::PartialLeftCapFill(capCenterX, centerY, radius, leftCapFill, CAP_SLICES, fgColor);
         }
         
         // Center body

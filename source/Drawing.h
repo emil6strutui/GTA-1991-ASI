@@ -64,6 +64,42 @@ inline void FilledRect(float x, float y, float w, float h, CRGBA color) {
     RwIm2DRenderPrimitive(rwPRIMTYPETRIFAN, verts, 4);
 }
 
+// Draw partial left cap fill using vertical slices following the curve
+inline void PartialLeftCapFill(float capCenterX, float capCenterY, float radius, 
+                                float fillWidth, int numSlices, CRGBA color) {
+    if (fillWidth <= 0 || numSlices < 1) return;
+    
+    SetupRenderState();
+    
+    if (fillWidth > radius) fillWidth = radius;
+    
+    float sliceWidth = fillWidth / numSlices;
+    float leftEdge = capCenterX - radius;
+    
+    for (int i = 0; i < numSlices; i++) {
+        float x1 = leftEdge + i * sliceWidth;
+        float x2 = x1 + sliceWidth;
+        
+        // Distance from center (going left from capCenterX)
+        float dx1 = capCenterX - x1;
+        float dx2 = capCenterX - x2;
+        
+        if (dx1 < 0) dx1 = 0;
+        if (dx2 < 0) dx2 = 0;
+        
+        float h1 = sqrtf(radius * radius - dx1 * dx1);
+        float h2 = sqrtf(radius * radius - dx2 * dx2);
+        
+        RwIm2DVertex verts[4];
+        SetVertex(verts[0], x1, capCenterY + h1, color);
+        SetVertex(verts[1], x2, capCenterY + h2, color);
+        SetVertex(verts[2], x2, capCenterY - h2, color);
+        SetVertex(verts[3], x1, capCenterY - h1, color);
+        
+        RwIm2DRenderPrimitive(rwPRIMTYPETRIFAN, verts, 4);
+    }
+}
+
 // Draw partial right cap fill using vertical slices following the curve
 inline void PartialRightCapFill(float capCenterX, float capCenterY, float radius, 
                                  float fillWidth, int numSlices, CRGBA color) {
