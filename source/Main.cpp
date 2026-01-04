@@ -24,7 +24,7 @@ public:
 
 // ============================================================================
 // EXPORTED API FUNCTIONS
-// Can be called from other modules/scripts at runtime
+// Can be called from CLEO scripts via DynamicLibrary.getProcedure
 // ============================================================================
 
 extern "C" {

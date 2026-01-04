@@ -9,7 +9,7 @@
 
 struct HudLayout {
     // Right margin from screen edge
-    float rightMargin = 55.0f;
+    float rightMargin = 65.0f;
     
     // Clock position
     float clockY = 22.0f;
@@ -20,7 +20,7 @@ struct HudLayout {
     // Weapon icon position (relative to right edge)
     float weaponX = 0.0f;
     float weaponY = 22.0f;
-    float weaponWidth = 47.0f;
+    float weaponWidth = 58.0f;
     float weaponHeight = 58.0f;
     
     // Ammo position (below weapon icon)
@@ -35,6 +35,15 @@ struct HudLayout {
     float armorBarY = 76.0f;
     float breathBarY = 88.0f;
     
+    // Wanted stars (above radar, left side)
+    float starsX = 13.0f;           // X position from left (Y-scaled)
+    float starsY = 320.0f;          // Y position from top
+    float starSpacing = 20.0f;      // Spacing between stars
+    float starScaleX = 0.43f;      // Font scale X
+    float starScaleY = 0.75f;       // Font scale Y
+    float starEmptyScale = 1.2f;    // Empty stars are larger by this multiplier
+    float starEmptyYOffset = 2.0f;  // Y offset for empty stars
+    
     // Visibility flags
     bool showClock = true;
     bool showMoney = true;
@@ -43,6 +52,7 @@ struct HudLayout {
     bool showHealthBar = true;
     bool showArmorBar = true;
     bool showBreathBar = true;
+    bool showStars = true;
 };
 
 // Global layout instance
