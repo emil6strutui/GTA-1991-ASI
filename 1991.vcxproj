@@ -132,6 +132,7 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
   <ItemGroup>
     <ClCompile Include="source\HudElements.cpp" />
     <ClCompile Include="source\Main.cpp" />
+    <ClCompile Include="source\Markers.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

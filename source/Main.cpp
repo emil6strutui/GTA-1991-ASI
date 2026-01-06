@@ -1,6 +1,7 @@
 #include <plugin.h>
 #include "HudLayout.h"
 #include "HudElements.h"
+#include "Markers.h"
 
 using namespace plugin;
 
@@ -19,6 +20,7 @@ public:
     RoundedHUD() {
         // Install all hooks - layout defaults are defined in HudLayout.h
         HudElements::InstallHooks();
+        Markers::InstallHooks();
     }
 } roundedHUD;
 
