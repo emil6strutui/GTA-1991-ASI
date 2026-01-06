@@ -104,7 +104,7 @@ void __cdecl ClockPrintString_Hook(float /*x*/, float /*y*/, char* text) {
 
 // Money PrintString hook
 void __cdecl MoneyPrintString_Hook(float /*x*/, float /*y*/, char* text) {
-    if (!g_HudLayout.showMoney) return;
+    if (!g_HudLayout.showMoney) return;   
     CFont::PrintString(Screen::FromRight(g_HudLayout.rightMargin), Screen::StretchY(g_HudLayout.moneyY), text);
 }
 
@@ -346,6 +346,15 @@ void __cdecl RenderWantedStars() {
 void InstallHooks() {
     // Clock & Money text
     patch::RedirectCall(0x58EC21, ClockPrintString_Hook);
+
+    // Money format strings - remove zero padding
+    static const char* moneyFormatPositive = "$%d";
+    static const char* moneyFormatNegative = "-$%d";
+
+    // Patch the format string pointers
+    // push offset instruction: 68 [addr] - pointer is at +1
+    patch::SetPointer(0x58F4C7 + 1, moneyFormatPositive);
+    patch::SetPointer(0x58F509 + 1, moneyFormatNegative);
     patch::RedirectCall(0x58F607, MoneyPrintString_Hook);
     
     // Weapon icon (P1 & P2)

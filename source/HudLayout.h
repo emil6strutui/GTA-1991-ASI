@@ -36,11 +36,11 @@ struct HudLayout {
     float breathBarY = 88.0f;
     
     // Wanted stars (above radar, left side)
-    float starsX = 13.0f;           // X position from left (Y-scaled)
+    float starsX = 10.0f;           // X position from left (Y-scaled)
     float starsY = 320.0f;          // Y position from top
     float starSpacing = 20.0f;      // Spacing between stars
-    float starScaleX = 0.43f;      // Font scale X
-    float starScaleY = 0.75f;       // Font scale Y
+    float starScaleX = 0.53f;      // Font scale X
+    float starScaleY = 0.95f;       // Font scale Y
     float starEmptyScale = 1.2f;    // Empty stars are larger by this multiplier
     float starEmptyYOffset = 2.0f;  // Y offset for empty stars
     
