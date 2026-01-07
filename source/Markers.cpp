@@ -10,6 +10,8 @@
 #include <C3dMarkers.h>
 #include <CEntity.h>
 #include <CFileLoader.h>
+#include <CModelInfo.h>
+#include <CStreaming.h>
 #include <unordered_map>
 #include <string>
 
@@ -96,9 +98,27 @@ static RpClump* g_OriginalConeClump = nullptr;
 static RpClump* g_OriginalConeNoCollClump = nullptr;
 static bool g_ModelInitialized = false;
 
+// Safely load a marker model - returns nullptr if model doesn't exist or can't be loaded
+static RpClump* SafeLoadMarker(const char* modelName) {
+    // Check if model info exists (IDE definition)
+    int32_t modelId = -1;
+    CBaseModelInfo* mi = CModelInfo::GetModelInfo(modelName, &modelId);
+    if (!mi || modelId < 0) {
+        return nullptr;  // Model not defined in IDE
+    }
+    
+    // Check if model is in IMG archive (DFF exists)
+    if (!CStreaming::IsObjectInCdImage(modelId)) {
+        return nullptr;  // DFF not in IMG archive
+    }
+    
+    // Model exists, safe to load
+    return C3dMarkers::LoadMarker(modelName);
+}
+
 // Lazy initialization - only load on first use when marker system is ready
 void EnsureModelLoaded() {
-    if (g_ModelInitialized) return;
+     if (g_ModelInitialized) return;
     
     RpClump** clumpArray = C3dMarkers::m_pRpClumpArray;
     if (!clumpArray || !clumpArray[MARKER3D_CONE]) return;
@@ -107,19 +127,10 @@ void EnsureModelLoaded() {
     g_OriginalConeClump = clumpArray[MARKER3D_CONE];
     g_OriginalConeNoCollClump = clumpArray[MARKER3D_CONE_NO_COLLISION];
     
-    // Load default custom model (diamond_4), fallback to diamond_3 on failure
-    try {
-        g_DefaultCustomClump = C3dMarkers::LoadMarker("diamond_4");
-    } catch (...) {
-        g_DefaultCustomClump = nullptr;
-    }
-    
+    // Load default custom model (diamond_4), fallback to original cone
+    g_DefaultCustomClump = SafeLoadMarker("diamond_4");
     if (!g_DefaultCustomClump) {
-        try {
-            g_DefaultCustomClump = C3dMarkers::LoadMarker("diamond_3");
-        } catch (...) {
-            g_DefaultCustomClump = nullptr;
-        }
+        g_DefaultCustomClump = g_OriginalConeClump;  // Use original as fallback
     }
     
     g_ModelInitialized = true;
@@ -134,20 +145,12 @@ static RpClump* GetCustomModelForEnex(CEntryExit* enex) {
     
     EnexCustomData& data = it->second;
     
-    // Load custom model if not already loaded, fallback to diamond_3 on failure
+    // Load custom model if not already loaded, fallback to original cone
     if (!data.customClump && !data.modelName.empty()) {
-        try {
-            data.customClump = C3dMarkers::LoadMarker(data.modelName.c_str());
-        } catch (...) {
-            data.customClump = nullptr;
-        }
+        data.customClump = SafeLoadMarker(data.modelName.c_str());
         
         if (!data.customClump) {
-            try {
-                data.customClump = C3dMarkers::LoadMarker("diamond_3");
-            } catch (...) {
-                data.customClump = nullptr;
-            }
+            data.customClump = g_OriginalConeClump;  // Use original as fallback
         }
     }
     
@@ -173,6 +176,13 @@ void __cdecl PlaceMarkerCone_Hook(
     uint16_t pulsePeriod, float pulseFraction, int16_t rotateRate,
     bool bEnableCollision
 ) {
+    // Safety: if id is 0 or looks invalid, just call original
+    if (id == 0) {
+        PlaceMarkerCone_Original(id, point, size, red, green, blue, alpha,
+                                 pulsePeriod, pulseFraction, rotateRate, bEnableCollision);
+        return;
+    }
+    
     // The 'id' parameter is actually the CEntryExit pointer cast to uint32
     CEntryExit* enex = reinterpret_cast<CEntryExit*>(id);
     
@@ -180,11 +190,17 @@ void __cdecl PlaceMarkerCone_Hook(
     CRGBA markerColor = EnexColor;
     RpClump* customClump = nullptr;
     
-    auto it = g_EnexCustomData.find(enex);
-    if (it != g_EnexCustomData.end() && it->second.hasCustomData) {
-        markerColor = it->second.color;
-        customClump = GetCustomModelForEnex(enex);
-    } else {
+    // Only look up custom data if we have entries (avoid map operations when empty)
+    if (!g_EnexCustomData.empty()) {
+        auto it = g_EnexCustomData.find(enex);
+        if (it != g_EnexCustomData.end() && it->second.hasCustomData) {
+            markerColor = it->second.color;
+            customClump = GetCustomModelForEnex(enex);
+        }
+    }
+    
+    // If no custom clump from map, use default
+    if (!customClump) {
         EnsureModelLoaded();
         customClump = g_DefaultCustomClump;
     }
