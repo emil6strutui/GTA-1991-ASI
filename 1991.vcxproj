@@ -130,6 +130,7 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="source\AnimPatches.cpp" />
     <ClCompile Include="source\HudElements.cpp" />
     <ClCompile Include="source\Main.cpp" />
     <ClCompile Include="source\Markers.cpp" />
