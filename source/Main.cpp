@@ -21,9 +21,9 @@ class RoundedHUD {
 public:
     RoundedHUD() {
         // Install all hooks - layout defaults are defined in HudLayout.h
-        HudElements::InstallHooks();
-        Markers::InstallHooks();
-        AnimPatches::InstallHooks();
+        //HudElements::InstallHooks();
+        //Markers::InstallHooks();
+        //AnimPatches::InstallHooks();
         ButtonIcons::InstallHooks();
     }
 } roundedHUD;

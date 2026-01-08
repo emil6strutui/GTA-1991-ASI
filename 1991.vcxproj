@@ -130,11 +130,8 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="source\AnimPatches.cpp" />
     <ClCompile Include="source\ButtonIcons.cpp" />
-    <ClCompile Include="source\HudElements.cpp" />
     <ClCompile Include="source\Main.cpp" />
-    <ClCompile Include="source\Markers.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
