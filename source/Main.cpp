@@ -3,6 +3,7 @@
 #include "HudElements.h"
 #include "Markers.h"
 #include "AnimPatches.h"
+#include "ButtonIcons.h"
 
 using namespace plugin;
 
@@ -23,6 +24,7 @@ public:
         HudElements::InstallHooks();
         Markers::InstallHooks();
         AnimPatches::InstallHooks();
+        ButtonIcons::InstallHooks();
     }
 } roundedHUD;
 
