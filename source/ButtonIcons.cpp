@@ -8,8 +8,19 @@
 #include <RenderWare.h>
 
 #include <cstring>
+#include <cstdio>
 
 using namespace plugin;
+
+// #region agent log - Debug helper
+static void DebugLog(const char* loc, const char* msg, unsigned int v1 = 0, unsigned int v2 = 0) {
+    FILE* f = fopen("D:\\GTA SA CLEO 5\\debug_buttonicons.log", "a");
+    if (f) {
+        fprintf(f, "[%s] %s: v1=%u (0x%X), v2=%u (0x%X)\n", loc, msg, v1, v1, v2, v2);
+        fclose(f);
+    }
+}
+// #endregion
 
 namespace ButtonIcons {
 
@@ -228,62 +239,36 @@ static int ParseKeyboardToken(const char* text) {
 }
 
 // ============================================================================
-// GetStringWidth HOOK
+// GetTextRect HOOK - Enlarge background box for sprite tokens
 // ============================================================================
-
-using GetStringLength_t = int(__cdecl*)(const char*);
-static GetStringLength_t CMessages_GetStringLength = reinterpret_cast<GetStringLength_t>(0x69DB50);
-
-using GetCharacterSize_t = float(__cdecl*)(uint8_t);
-static GetCharacterSize_t CFont_GetCharacterSize = reinterpret_cast<GetCharacterSize_t>(0x719750);
-
-using GetScriptLetterSize_t = float(__cdecl*)(uint8_t);
-static GetScriptLetterSize_t CFont_GetScriptLetterSize = reinterpret_cast<GetScriptLetterSize_t>(0x719670);
 
 static float* g_FontScaleY = reinterpret_cast<float*>(0xC71A68);
 
-float __cdecl GetStringWidth_Reimplemented(const char* string, bool full, bool scriptText) {
-    int len = CMessages_GetStringLength(string);
-    if (len <= 0) return 0.0f;
-    
-    float width = 0.0f;
-    bool lastWasTag = false, lastWasLetter = false;
-    const char* pStr = string;
-    
-    while (*pStr != '\0') {
-        if (*pStr == ' ' && !full) break;
-        
-        if (*pStr == '~') {
-            if (!full && (lastWasTag || lastWasLetter)) return width;
-            
-            const char* next = pStr + 1;
-            
-            // Check for our sprite tokens: ~Kxx~ or ~Mxx~
-            if ((*next == 'K' || *next == 'M') && 
-                next[1] >= '0' && next[1] <= '9' &&
-                next[2] >= '0' && next[2] <= '9' &&
-                next[3] == '~') {
-                width += 17.0f * (*g_FontScaleY);
-                pStr = next + 4;
-            } else {
-                if (*next != '~') {
-                    for (; *next && *next != '~'; next++);
-                }
-                pStr = next + 1;
-            }
-            
-            if (lastWasLetter || *pStr == '~') lastWasTag = true;
-        } else {
-            if (!full && *pStr == ' ' && lastWasTag) return width;
-            
-            uint8_t upper = static_cast<uint8_t>(*pStr) - 0x20;
-            pStr++;
-            
-            width += scriptText ? CFont_GetScriptLetterSize(upper) : CFont_GetCharacterSize(upper);
-            lastWasLetter = true;
+using GetTextRect_t = void(__cdecl*)(CRect*, float, float, const char*);
+static GetTextRect_t GetTextRect_Original = reinterpret_cast<GetTextRect_t>(0x71A620);
+
+static int CountCustomTokens(const char* text) {
+    int count = 0;
+    for (const char* p = text; *p; p++) {
+        if (*p == '~' && (p[1] == 'K' || p[1] == 'M') && 
+            p[2] >= '0' && p[2] <= '9' && p[3] >= '0' && p[3] <= '9' && p[4] == '~') {
+            count++;
+            p += 4;
         }
     }
-    return width;
+    return count;
+}
+
+void __cdecl GetTextRect_Hooked(CRect* rect, float x, float y, const char* text) {
+    // Call original first
+    GetTextRect_Original(rect, x, y, text);
+    
+    // Count our custom tokens and enlarge rect for sprite width
+    int tokenCount = CountCustomTokens(text);
+    if (tokenCount > 0) {
+        float extraWidth = tokenCount * 17.0f * (*g_FontScaleY);
+        rect->right += extraWidth;
+    }
 }
 
 // ============================================================================
@@ -311,11 +296,22 @@ static void* g_ControllerThis;
 
 static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type) {
     void* thisPtr = g_ControllerThis;
+    
+    // #region agent log - H4: Log every call to this function
+    DebugLog("KeyBoard_Impl", "entry", reinterpret_cast<uintptr_t>(thisPtr), (action << 16) | type);
+    // #endregion
+    
     memset(g_KeyNameBuffer, 0, 0x30);
     
     // Sanity checks
-    if (!thisPtr || thisPtr == reinterpret_cast<void*>(0xFFFFFFFF)) return nullptr;
-    if (action < 0 || action > 58 || type < 0 || type > 3) return nullptr;
+    if (!thisPtr || thisPtr == reinterpret_cast<void*>(0xFFFFFFFF)) {
+        DebugLog("KeyBoard_Impl", "BAD_THISPTR", reinterpret_cast<uintptr_t>(thisPtr), 0);
+        return nullptr;
+    }
+    if (action < 0 || action > 58 || type < 0 || type > 3) {
+        DebugLog("KeyBoard_Impl", "BAD_ACTION_TYPE", action, type);
+        return nullptr;
+    }
     
     unsigned int* thisAsInt = reinterpret_cast<unsigned int*>(thisPtr);
     unsigned int keyCode = thisAsInt[8 * action + 2 * type + 0x2DC];
@@ -332,9 +328,18 @@ static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type)
         
         // F1-F12 keys
         if (keyCode >= 0x3E9 && keyCode <= 0x3F4) {
+            // #region agent log - H3: Log F1-F12 handling
+            DebugLog("F1-F12", "entry", keyCode, keyCode - 1000);
+            // #endregion
             char* fncText = CText_Get("FEC_FNC");
+            // #region agent log - H3: Log CText_Get result
+            DebugLog("F1-F12", "CText_Get_result", reinterpret_cast<uintptr_t>(fncText), 0);
+            // #endregion
             if (fncText) {
                 CMessages_InsertNumberInString(fncText, keyCode - 1000, -1, -1, -1, -1, -1, g_NumberBuffer);
+                // #region agent log - H3: Log after InsertNumberInString
+                DebugLog("F1-F12", "InsertNum_done", reinterpret_cast<uintptr_t>(g_NumberBuffer), 0);
+                // #endregion
                 return g_NumberBuffer;
             }
             // Fallback if CText_Get returns invalid
@@ -511,15 +516,9 @@ void InstallHooks() {
     // This handles all ~k~~ACTION~ replacements automatically via game's InsertPlayerControlKeysInString
     patch::RedirectJump(0x52FE10, GetControllerSettingTextKeyBoard_Thunk);
     
-    // Hook GetStringWidth to measure sprite tokens
-    patch::RedirectCall(0x47B565, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x47B73A, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x57A49B, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x57FB52, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x57FE35, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x5814A7, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x581512, GetStringWidth_Reimplemented);
-    patch::RedirectCall(0x58BCCC, GetStringWidth_Reimplemented);
+    // Hook GetTextRect to enlarge background box for sprite tokens
+    // This avoids line-breaking corruption that GetStringWidth hooks cause
+    patch::RedirectCall(0x71A77B, GetTextRect_Hooked);  // Called from CFont::PrintString
     
     // Hook ParseToken to render our sprite tokens (~Kxx~, ~Mxx~)
     patch::RedirectCall(0x719965, ParseToken_Hooked);
