@@ -16,25 +16,136 @@ using namespace plugin;
 namespace ButtonIcons {
 
 // ============================================================================
+// DEBUG LOGGING
+// ============================================================================
+
+#define BUTTONICONS_DEBUG 1  // Set to 0 to disable logging
+#define BUTTONICONS_VERBOSE 0  // Set to 1 for verbose logging (fills up fast)
+
+#if BUTTONICONS_DEBUG
+static FILE* g_DebugLog = nullptr;
+static int g_LogCount = 0;
+static const int MAX_LOG_ENTRIES = 100000;
+
+// Statistics for periodic reporting
+static int g_TotalParseTokenCalls = 0;
+static int g_KeyboardTokens = 0;
+static int g_MouseTokens = 0;
+static int g_GInputTokens = 0;
+static int g_OtherTokens = 0;
+static int g_DrawHookCalls = 0;
+static int g_LastReportTime = 0;
+
+static void DebugLog(const char* format, ...) {
+    if (!g_DebugLog || g_LogCount >= MAX_LOG_ENTRIES) return;
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(g_DebugLog, format, args);
+    fprintf(g_DebugLog, "\n");
+    fflush(g_DebugLog);
+    va_end(args);
+    g_LogCount++;
+}
+
+// Conditional logging - only logs if VERBOSE or if it's important
+static void DebugLogVerbose(const char* format, ...) {
+#if BUTTONICONS_VERBOSE
+    if (!g_DebugLog || g_LogCount >= MAX_LOG_ENTRIES) return;
+    va_list args;
+    va_start(args, format);
+    vfprintf(g_DebugLog, format, args);
+    fprintf(g_DebugLog, "\n");
+    fflush(g_DebugLog);
+    va_end(args);
+    g_LogCount++;
+#endif
+}
+
+// Log statistics periodically (every ~30 seconds based on call count)
+static void LogStatsPeriodically() {
+    // Log stats every 10000 ParseToken calls
+    if (g_TotalParseTokenCalls > 0 && (g_TotalParseTokenCalls % 10000) == 0) {
+        DebugLog("=== STATS at %d calls: KB=%d, Mouse=%d, GInput=%d, Other=%d, DrawHook=%d ===",
+                 g_TotalParseTokenCalls, g_KeyboardTokens, g_MouseTokens,
+                 g_GInputTokens, g_OtherTokens, g_DrawHookCalls);
+    }
+}
+
+static void InitDebugLog() {
+    g_DebugLog = fopen("ButtonIcons_debug.log", "w");
+    if (g_DebugLog) {
+        fprintf(g_DebugLog, "=== ButtonIcons Debug Log (Corruption Detection Mode) ===\n");
+        fprintf(g_DebugLog, "This log focuses on errors and anomalies. Stats logged every 10000 calls.\n\n");
+        fflush(g_DebugLog);
+    }
+}
+
+static void CloseDebugLog() {
+    if (g_DebugLog) {
+        fprintf(g_DebugLog, "\n=== FINAL STATS ===\n");
+        fprintf(g_DebugLog, "Total ParseToken calls: %d\n", g_TotalParseTokenCalls);
+        fprintf(g_DebugLog, "Keyboard tokens: %d\n", g_KeyboardTokens);
+        fprintf(g_DebugLog, "Mouse tokens: %d\n", g_MouseTokens);
+        fprintf(g_DebugLog, "GInput tokens: %d\n", g_GInputTokens);
+        fprintf(g_DebugLog, "Other tokens: %d\n", g_OtherTokens);
+        fprintf(g_DebugLog, "DrawHook calls: %d\n", g_DrawHookCalls);
+        fprintf(g_DebugLog, "Log entries: %d\n", g_LogCount);
+        fprintf(g_DebugLog, "=== End of Log ===\n");
+        fclose(g_DebugLog);
+        g_DebugLog = nullptr;
+    }
+}
+#else
+#define DebugLog(...) ((void)0)
+#define DebugLogVerbose(...) ((void)0)
+#define LogStatsPeriodically() ((void)0)
+#define InitDebugLog() ((void)0)
+#define CloseDebugLog() ((void)0)
+#endif
+
+// ============================================================================
+// GINPUT COMPATIBILITY
+// ============================================================================
+
+static bool g_GInputLoaded = false;
+static CSprite2d* g_SpriteArray = nullptr;  // Points to either our array or GInput's
+static float* g_SpriteWidths = nullptr;     // Points to either our widths or GInput's
+
+// Check if GInput is loaded
+static bool IsGInputLoaded() {
+    return GetModuleHandleA("GInputSA.asi") != nullptr;
+}
+
+// ============================================================================
 // EXTENDED SPRITE ARRAY
 // ============================================================================
-// Layout:
+// Layout (without GInput):
 // 0:       Unused (PS2Symbol=0 means no sprite)
 // 1-14:    PS2 controller buttons (original game) - DO NOT USE
 // 15-82:   Keyboard keys (68 keys)
 // 83-89:   Mouse buttons (7 buttons)
 // 90-95:   Reserved
+//
+// Layout (with GInput):
+// 0-49:    GInput sprites (controller buttons)
+// 50-117:  Keyboard keys (68 keys)
+// 118-124: Mouse buttons (7 buttons)
 // ============================================================================
 
-static const int MAX_EXTENDED_SPRITES = 96;
+static const int MAX_EXTENDED_SPRITES = 128;  // Increased for GInput compatibility
 static CSprite2d g_ExtendedSprites[MAX_EXTENDED_SPRITES];
 static float g_ExtendedSpriteWidths[MAX_EXTENDED_SPRITES];
 static float g_SymbolSpriteWidth = 17.0f;
 static unsigned int g_TokenWidth = 3;  // Token length for GetNumberLines sub esi fix
 
-// Start at 15 to avoid ALL original PS2 symbol indices (1-14)
-static const int KEYBOARD_SPRITE_BASE = 15;
-static const int MOUSE_SPRITE_BASE = KEYBOARD_SPRITE_BASE + KEYBOARD_COUNT;  // 15 + 68 = 83
+// Base indices - adjusted at runtime if GInput is present
+static int KEYBOARD_SPRITE_BASE = 15;
+static int MOUSE_SPRITE_BASE = 15 + KEYBOARD_COUNT;  // 15 + 68 = 83
+
+// GInput-compatible bases (after GInput's ~50 sprites)
+static const int GINPUT_KEYBOARD_SPRITE_BASE = 50;
+static const int GINPUT_MOUSE_SPRITE_BASE = 50 + KEYBOARD_COUNT;  // 50 + 68 = 118
 
 // ============================================================================
 // KEYBOARD SPRITE NAMES
@@ -101,20 +212,65 @@ enum RsKeyCodes : int {
 // ============================================================================
 
 static void ExpandButtonSpriteArray() {
-    // Copy original sprite array (15 PS2 button sprites)
-    CSprite2d* originalArray = reinterpret_cast<CSprite2d*>(0xC71AD8);
-    memcpy(g_ExtendedSprites, originalArray, 15 * sizeof(CSprite2d));
+    g_GInputLoaded = IsGInputLoaded();
 
-    // Copy original sprite widths (game stores these at 0xC71A90)
-    float* originalWidths = reinterpret_cast<float*>(0xC71A90);
-    memcpy(g_ExtendedSpriteWidths, originalWidths, 15 * sizeof(float));
+    if (g_GInputLoaded) {
+        // GInput is loaded - use higher sprite indices to avoid conflicts with GInput's sprites
+        KEYBOARD_SPRITE_BASE = GINPUT_KEYBOARD_SPRITE_BASE;
+        MOUSE_SPRITE_BASE = GINPUT_MOUSE_SPRITE_BASE;
 
-    // Initialize extended sprite widths to default
-    for (int i = 15; i < MAX_EXTENDED_SPRITES; i++) {
-        g_ExtendedSpriteWidths[i] = 17.0f;
+        // Read GInput's sprite array pointer from the patched address
+        // GInput patches 0x718AE1 with its PS2Sprite array address
+        CSprite2d* ginputArray = *reinterpret_cast<CSprite2d**>(0x718AE1);
+
+        // Copy GInput's sprites (indices 0-49) into our extended array
+        // This preserves GInput's controller button sprites
+        if (ginputArray) {
+            memcpy(g_ExtendedSprites, ginputArray, 50 * sizeof(CSprite2d));
+        }
+
+        // Initialize sprite widths for our keyboard/mouse sprites
+        for (int i = 0; i < MAX_EXTENDED_SPRITES; i++) {
+            g_ExtendedSpriteWidths[i] = 17.0f;
+        }
+
+        g_SpriteArray = g_ExtendedSprites;
+        g_SpriteWidths = g_ExtendedSpriteWidths;
+
+        // Override GInput's patch to use our larger array
+        // This is safe because our array contains GInput's sprites at indices 0-49
+        patch::SetPointer(0x718AE1, g_ExtendedSprites);
+
+        DebugLog("Init: GInput mode - KB_BASE=%d, MOUSE_BASE=%d, GInputArray=%p",
+                 KEYBOARD_SPRITE_BASE, MOUSE_SPRITE_BASE, (void*)ginputArray);
+
+    } else {
+        // No GInput - use our own array starting at index 15
+        KEYBOARD_SPRITE_BASE = 15;
+        MOUSE_SPRITE_BASE = 15 + KEYBOARD_COUNT;
+
+        // Copy original sprite array (15 PS2 button sprites)
+        CSprite2d* originalArray = reinterpret_cast<CSprite2d*>(0xC71AD8);
+        memcpy(g_ExtendedSprites, originalArray, 15 * sizeof(CSprite2d));
+
+        // Copy original sprite widths (game stores these at 0xC71A90)
+        float* originalWidths = reinterpret_cast<float*>(0xC71A90);
+        memcpy(g_ExtendedSpriteWidths, originalWidths, 15 * sizeof(float));
+
+        // Initialize extended sprite widths to default
+        for (int i = 15; i < MAX_EXTENDED_SPRITES; i++) {
+            g_ExtendedSpriteWidths[i] = 17.0f;
+        }
+
+        g_SpriteArray = g_ExtendedSprites;
+        g_SpriteWidths = g_ExtendedSpriteWidths;
+
+        // Patch game to use our extended array
+        patch::SetPointer(0x718AE1, g_ExtendedSprites);
+
+        DebugLog("Init: Standalone mode - KB_BASE=%d, MOUSE_BASE=%d",
+                 KEYBOARD_SPRITE_BASE, MOUSE_SPRITE_BASE);
     }
-
-    patch::SetPointer(0x718AE1, g_ExtendedSprites);
 }
 
 // ============================================================================
@@ -123,11 +279,19 @@ static void ExpandButtonSpriteArray() {
 
 static void LoadTextures() {
     if (g_TexturesLoaded) return;
+    if (!g_SpriteArray) {
+        DebugLog("ERROR: LoadTextures called but g_SpriteArray is NULL!");
+        return;
+    }
 
     g_TxdSlot = CTxdStore::AddTxdSlot("buttonicons");
-    if (g_TxdSlot == -1) return;
+    if (g_TxdSlot == -1) {
+        DebugLog("ERROR: Failed to add TXD slot!");
+        return;
+    }
 
     if (!CTxdStore::LoadTxd(g_TxdSlot, "models\\pcbtns.txd")) {
+        DebugLog("ERROR: Failed to load pcbtns.txd!");
         CTxdStore::RemoveTxdSlot(g_TxdSlot);
         g_TxdSlot = -1;
         return;
@@ -136,20 +300,25 @@ static void LoadTextures() {
     CTxdStore::AddRef(g_TxdSlot);
     CTxdStore::SetCurrentTxd(g_TxdSlot);
 
-    // Load keyboard sprites
+    // Load keyboard sprites into the active sprite array
+    int loadedKeyboard = 0;
     for (int i = 0; i < KEYBOARD_COUNT; i++) {
         int idx = KEYBOARD_SPRITE_BASE + i;
-        g_ExtendedSprites[idx].SetTexture(const_cast<char*>(g_KeyboardSpriteNames[i]));
+        g_SpriteArray[idx].SetTexture(const_cast<char*>(g_KeyboardSpriteNames[i]));
+        if (g_SpriteArray[idx].m_pTexture) loadedKeyboard++;
     }
+
     // Load mouse sprites
+    int loadedMouse = 0;
     for (int i = 0; i < MOUSE_COUNT; i++) {
         int idx = MOUSE_SPRITE_BASE + i;
-        g_ExtendedSprites[idx].SetTexture(const_cast<char*>(g_MouseSpriteNames[i]));
+        g_SpriteArray[idx].SetTexture(const_cast<char*>(g_MouseSpriteNames[i]));
+        if (g_SpriteArray[idx].m_pTexture) loadedMouse++;
     }
 
     // Calculate widths based on texture aspect ratio (like GInput does)
     for (int i = KEYBOARD_SPRITE_BASE; i < MOUSE_SPRITE_BASE + MOUSE_COUNT; i++) {
-        RwTexture* tex = g_ExtendedSprites[i].m_pTexture;
+        RwTexture* tex = g_SpriteArray[i].m_pTexture;
         if (tex) {
             RwRaster* raster = RwTextureGetRaster(tex);
             if (raster) {
@@ -165,16 +334,19 @@ static void LoadTextures() {
 
     CTxdStore::PopCurrentTxd();
     g_TexturesLoaded = true;
+    DebugLog("Init: Loaded %d/%d keyboard, %d/%d mouse sprites",
+             loadedKeyboard, KEYBOARD_COUNT, loadedMouse, MOUSE_COUNT);
 }
 
 static void UnloadTextures() {
     if (!g_TexturesLoaded) return;
-    
+    if (!g_SpriteArray) return;
+
     for (int i = 0; i < KEYBOARD_COUNT; i++) {
-        g_ExtendedSprites[KEYBOARD_SPRITE_BASE + i].Delete();
+        g_SpriteArray[KEYBOARD_SPRITE_BASE + i].Delete();
     }
     for (int i = 0; i < MOUSE_COUNT; i++) {
-        g_ExtendedSprites[MOUSE_SPRITE_BASE + i].Delete();
+        g_SpriteArray[MOUSE_SPRITE_BASE + i].Delete();
     }
     
     if (g_TxdSlot != -1) {
@@ -319,9 +491,11 @@ static InsertNumberInString_t CMessages_InsertNumberInString = reinterpret_cast<
 
 static char g_SpriteTokenBuffer[8];
 static void* g_ControllerThis;
+static int g_KeyboardCallCount = 0;  // For debug throttling
 
 static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type) {
     void* thisPtr = g_ControllerThis;
+    g_KeyboardCallCount++;
     
     memset(g_KeyNameBuffer, 0, 0x30);
     
@@ -424,6 +598,7 @@ static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type)
     const char* token = GetSpriteTokenForKeyCode(keyCode);
     if (token && g_Enabled && g_TexturesLoaded) {
         strcpy(g_SpriteTokenBuffer, token);
+        DebugLogVerbose("GetControllerSettingTextKeyBoard: action=%d, keyCode=%u -> %s", action, keyCode, token);
         return g_SpriteTokenBuffer;
     }
     
@@ -458,20 +633,23 @@ using GetMouseButton_t = unsigned int(__thiscall*)(void*, int);
 static GetMouseButton_t GetMouseButtonAssociatedWithAction = reinterpret_cast<GetMouseButton_t>(0x52F580);
 
 static char g_MouseTokenBuffer[8];
+static int g_MouseCallCount = 0;  // For debug throttling
 
 static char* __cdecl GetControllerSettingTextMouse_Impl(int action) {
     void* thisPtr = g_ControllerThis;
-    
+    g_MouseCallCount++;
+
     if (!thisPtr || thisPtr == reinterpret_cast<void*>(0xFFFFFFFF)) return nullptr;
     if (action < 0 || action > 58) return nullptr;
-    
+
     unsigned int mouseCode = GetMouseButtonAssociatedWithAction(thisPtr, action);
     if (mouseCode == 0) return nullptr;  // Unbound
-    
+
     // Return sprite token if enabled
     const char* token = GetSpriteTokenForMouseCode(mouseCode);
     if (token && g_Enabled && g_TexturesLoaded) {
         strcpy(g_MouseTokenBuffer, token);
+        DebugLogVerbose("GetControllerSettingTextMouse: action=%d, mouseCode=%u -> %s", action, mouseCode, token);
         return g_MouseTokenBuffer;
     }
     
@@ -506,12 +684,20 @@ __declspec(naked) void GetControllerSettingTextMouse_Thunk() {
 
 static uint8_t* g_PS2Symbol = reinterpret_cast<uint8_t*>(0xC71A54);
 
+// Pointers to GInput's variables (if GInput is loaded)
+// Read at runtime from patched addresses
+static float* g_GInputSpriteWidth = nullptr;
+static unsigned int* g_GInputTokenWidth = nullptr;  // GInput's nTokenWidth variable
+
 using ParseToken_t = char*(__cdecl*)(char*, CRGBA&, bool, char*);
 static ParseToken_t ParseToken_Original = reinterpret_cast<ParseToken_t>(0x718F00);
 
 char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag) {
+    // Always set a safe default first
+    g_TokenWidth = 3;
+    g_TotalParseTokenCalls++;
+
     if (!text || !g_Enabled || !g_TexturesLoaded) {
-        g_TokenWidth = 3;  // Default for original tokens
         return ParseToken_Original(text, color, isBlip, tag);
     }
 
@@ -519,11 +705,20 @@ char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag
     if (text[0] == '~' && text[1] == 'K') {
         int keyIndex = ParseKeyboardToken(text);
         if (keyIndex >= 0 && keyIndex < KEYBOARD_COUNT) {
-            uint8_t spriteIdx = static_cast<uint8_t>(KEYBOARD_SPRITE_BASE + keyIndex);
-            *g_PS2Symbol = spriteIdx;
-            g_SymbolSpriteWidth = g_ExtendedSpriteWidths[spriteIdx];
-            g_TokenWidth = 5;  // Our tokens are 5 chars: ~Kxx~
-            return text + 5;
+            int spriteIdx = KEYBOARD_SPRITE_BASE + keyIndex;
+            if (spriteIdx >= 0 && spriteIdx < MAX_EXTENDED_SPRITES) {
+                *g_PS2Symbol = static_cast<uint8_t>(spriteIdx);
+                g_SymbolSpriteWidth = g_ExtendedSpriteWidths[spriteIdx];
+                g_TokenWidth = 5;  // Our tokens are 5 chars: ~Kxx~
+                g_KeyboardTokens++;
+                DebugLogVerbose("ParseToken: Keyboard token K%02d -> spriteIdx=%d", keyIndex, spriteIdx);
+                LogStatsPeriodically();
+                return text + 5;
+            } else {
+                // ERROR: Invalid sprite index!
+                DebugLog("ERROR: Keyboard token K%02d -> INVALID spriteIdx=%d (base=%d, max=%d)",
+                         keyIndex, spriteIdx, KEYBOARD_SPRITE_BASE, MAX_EXTENDED_SPRITES);
+            }
         }
     }
 
@@ -531,20 +726,56 @@ char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag
     if (text[0] == '~' && text[1] == 'M' && text[4] == '~') {
         char d1 = text[2], d2 = text[3];
         if (d1 == '0' && d2 >= '0' && d2 <= '6') {
-            uint8_t spriteIdx = static_cast<uint8_t>(MOUSE_SPRITE_BASE + (d2 - '0'));
-            *g_PS2Symbol = spriteIdx;
-            g_SymbolSpriteWidth = g_ExtendedSpriteWidths[spriteIdx];
-            g_TokenWidth = 5;  // Our tokens are 5 chars: ~Mxx~
-            return text + 5;
+            int spriteIdx = MOUSE_SPRITE_BASE + (d2 - '0');
+            if (spriteIdx >= 0 && spriteIdx < MAX_EXTENDED_SPRITES) {
+                *g_PS2Symbol = static_cast<uint8_t>(spriteIdx);
+                g_SymbolSpriteWidth = g_ExtendedSpriteWidths[spriteIdx];
+                g_TokenWidth = 5;  // Our tokens are 5 chars: ~Mxx~
+                g_MouseTokens++;
+                DebugLogVerbose("ParseToken: Mouse token M%c%c -> spriteIdx=%d", d1, d2, spriteIdx);
+                LogStatsPeriodically();
+                return text + 5;
+            } else {
+                // ERROR: Invalid sprite index!
+                DebugLog("ERROR: Mouse token M%c%c -> INVALID spriteIdx=%d (base=%d, max=%d)",
+                         d1, d2, spriteIdx, MOUSE_SPRITE_BASE, MAX_EXTENDED_SPRITES);
+            }
         }
     }
 
-    // For original game tokens, let original handler deal with it
-    g_TokenWidth = 3;  // Original tokens are 3 chars: ~x~
+    // For original/GInput tokens, let the chained handler deal with it
+    // g_TokenWidth stays at 3 (set at start of function)
     char* result = ParseToken_Original(text, color, isBlip, tag);
-    if (*g_PS2Symbol != 0) {
-        g_SymbolSpriteWidth = g_ExtendedSpriteWidths[*g_PS2Symbol];
+    uint8_t symbolAfter = *g_PS2Symbol;
+
+    // If a sprite was set by the original/GInput handler
+    if (symbolAfter != 0) {
+        // If GInput handled it (sprite index in GInput's range), read GInput's variables
+        if (g_GInputLoaded && symbolAfter < KEYBOARD_SPRITE_BASE) {
+            // Copy GInput's sprite width
+            if (g_GInputSpriteWidth) {
+                g_SymbolSpriteWidth = *g_GInputSpriteWidth;
+            }
+            // CRITICAL: Copy GInput's token width! GInput uses 3 or 4 char tokens
+            if (g_GInputTokenWidth) {
+                g_TokenWidth = *g_GInputTokenWidth;
+            }
+            g_GInputTokens++;
+            DebugLogVerbose("ParseToken: GInput token -> symbolIdx=%d, tokenWidth=%d", symbolAfter, g_TokenWidth);
+        } else if (symbolAfter < MAX_EXTENDED_SPRITES) {
+            // Bounds check before array access
+            g_SymbolSpriteWidth = g_ExtendedSpriteWidths[symbolAfter];
+            g_OtherTokens++;
+            DebugLogVerbose("ParseToken: Original token -> symbolIdx=%d", symbolAfter);
+        } else {
+            // ERROR: Out of bounds!
+            g_SymbolSpriteWidth = 17.0f;
+            DebugLog("ERROR: OUT OF BOUNDS! symbolIdx=%d (max=%d) at call #%d",
+                     symbolAfter, MAX_EXTENDED_SPRITES, g_TotalParseTokenCalls);
+        }
     }
+
+    LogStatsPeriodically();
     return result;
 }
 
@@ -560,33 +791,46 @@ using CSprite2d_Draw_t = void(__thiscall*)(CSprite2d*, const CRect&, const CRGBA
 static CSprite2d_Draw_t CSprite2d_Draw_Original = reinterpret_cast<CSprite2d_Draw_t>(0x728350);
 
 // Hook for CSprite2d::Draw called from PrintChar (0x718AE5)
-// Enforces minimum size and crisp filtering for our extended sprites
+// Enforces minimum size for our extended sprites
 void __fastcall ButtonSprite_Draw_Hook(CSprite2d* sprite, void* edx, const CRect& rect, const CRGBA& color) {
-    // Check if this sprite is one of our extended sprites (index >= 15)
-    // by comparing the sprite pointer to our array
-    ptrdiff_t offset = reinterpret_cast<uintptr_t>(sprite) - reinterpret_cast<uintptr_t>(g_ExtendedSprites);
-    int spriteIndex = static_cast<int>(offset / sizeof(CSprite2d));
+    g_DrawHookCalls++;
 
-    // Only apply minimum size to our extended sprites (keyboard/mouse icons)
-    if (spriteIndex >= KEYBOARD_SPRITE_BASE && spriteIndex < MAX_EXTENDED_SPRITES) {
-        float currentHeight = rect.bottom - rect.top;
+    // Check if this sprite is one of our extended sprites
+    // by comparing the sprite pointer to the active sprite array
+    if (g_SpriteArray && sprite) {
+        ptrdiff_t offset = reinterpret_cast<uintptr_t>(sprite) - reinterpret_cast<uintptr_t>(g_SpriteArray);
+        int spriteIndex = static_cast<int>(offset / sizeof(CSprite2d));
 
-        if (currentHeight < MIN_SPRITE_HEIGHT && currentHeight > 0.0f) {
-            // Get aspect ratio from our stored widths
-            float aspectRatio = g_ExtendedSpriteWidths[spriteIndex] / 17.0f;
+        // Only log anomalies
+        if (spriteIndex < 0 || spriteIndex >= MAX_EXTENDED_SPRITES) {
+            DebugLog("ERROR: ButtonSprite_Draw_Hook: INVALID spriteIndex=%d (offset=%d)",
+                     spriteIndex, (int)offset);
+        }
 
-            // Create enlarged rect, keeping top-left position
-            float newHeight = MIN_SPRITE_HEIGHT;
-            float newWidth = newHeight * aspectRatio;
+        // Bounds check and verify it's one of our keyboard/mouse sprites
+        if (spriteIndex >= KEYBOARD_SPRITE_BASE &&
+            spriteIndex < KEYBOARD_SPRITE_BASE + KEYBOARD_COUNT + MOUSE_COUNT &&
+            spriteIndex < MAX_EXTENDED_SPRITES) {
 
-            CRect enlargedRect;
-            enlargedRect.left = rect.left;
-            enlargedRect.top = rect.top;
-            enlargedRect.right = rect.left + newWidth;
-            enlargedRect.bottom = rect.top + newHeight;
+            float currentHeight = rect.bottom - rect.top;
 
-            CSprite2d_Draw_Original(sprite, enlargedRect, color);
-            return;
+            if (currentHeight < MIN_SPRITE_HEIGHT && currentHeight > 0.0f) {
+                // Get aspect ratio from our stored widths (with bounds check)
+                float aspectRatio = g_ExtendedSpriteWidths[spriteIndex] / 17.0f;
+
+                // Create enlarged rect, keeping top-left position
+                float newHeight = MIN_SPRITE_HEIGHT;
+                float newWidth = newHeight * aspectRatio;
+
+                CRect enlargedRect;
+                enlargedRect.left = rect.left;
+                enlargedRect.top = rect.top;
+                enlargedRect.right = rect.left + newWidth;
+                enlargedRect.bottom = rect.top + newHeight;
+
+                CSprite2d_Draw_Original(sprite, enlargedRect, color);
+                return;
+            }
         }
     }
 
@@ -599,9 +843,9 @@ void __fastcall ButtonSprite_Draw_Hook(CSprite2d* sprite, void* edx, const CRect
 // ============================================================================
 
 void DrawIcon(MouseButton button, float x, float y, float size) {
-    if (!g_TexturesLoaded || button < 0 || button >= MOUSE_COUNT) return;
-    
-    CSprite2d* sprite = &g_ExtendedSprites[MOUSE_SPRITE_BASE + button];
+    if (!g_TexturesLoaded || !g_SpriteArray || button < 0 || button >= MOUSE_COUNT) return;
+
+    CSprite2d* sprite = &g_SpriteArray[MOUSE_SPRITE_BASE + button];
     if (!sprite->m_pTexture) return;
     
     CRect rect(x - size * 0.5f, y - size * 0.5f, x + size * 0.5f, y + size * 0.5f);
@@ -610,11 +854,11 @@ void DrawIcon(MouseButton button, float x, float y, float size) {
 
 void DrawIconColored(MouseButton button, float x, float y, float size,
                      unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-    if (!g_TexturesLoaded || button < 0 || button >= MOUSE_COUNT) return;
-    
-    CSprite2d* sprite = &g_ExtendedSprites[MOUSE_SPRITE_BASE + button];
+    if (!g_TexturesLoaded || !g_SpriteArray || button < 0 || button >= MOUSE_COUNT) return;
+
+    CSprite2d* sprite = &g_SpriteArray[MOUSE_SPRITE_BASE + button];
     if (!sprite->m_pTexture) return;
-    
+
     CRect rect(x - size * 0.5f, y - size * 0.5f, x + size * 0.5f, y + size * 0.5f);
     sprite->Draw(rect, CRGBA(r, g, b, a));
 }
@@ -625,12 +869,18 @@ void DrawIconColored(MouseButton button, float x, float y, float size,
 
 // This is called during text width/layout calculation to account for sprite width
 char* __stdcall AddTokenToWidth(char* pText, float& fPos) {
+    if (!pText) {
+        DebugLog("ERROR: AddTokenToWidth called with NULL pText!");
+        return pText;
+    }
+
     CRGBA tempColor;
     char* pNewPtr = ParseToken_Hooked(pText, tempColor, true, nullptr) - 1;
 
-    if (*g_PS2Symbol != 0) {
+    uint8_t symbolIdx = *g_PS2Symbol;
+    if (symbolIdx != 0) {
         // Get current font scale Y from game
-        float fontScaleY = *g_FontScaleY;
+        float fontScaleY = g_FontScaleY ? *g_FontScaleY : 1.0f;
         float widthToAdd = g_SymbolSpriteWidth * fontScaleY;
         *g_PS2Symbol = 0;  // Reset after measuring
         fPos += widthToAdd;
@@ -649,7 +899,8 @@ void __declspec(naked) TokenWidthHook() {
     __asm {
         test    dl, dl
         jz      TokenWidthHook_Return
-        sub     esi, g_TokenWidth
+        mov     eax, dword ptr [g_TokenWidth]  // Load token width value
+        sub     esi, eax                        // Subtract from text pointer
     TokenWidthHook_Return:
         ret
     }
@@ -659,34 +910,77 @@ void __declspec(naked) TokenWidthHook() {
 // INSTALLATION
 // ============================================================================
 
-void InstallHooks() {
+static bool g_HooksInstalled = false;
+
+// Deferred initialization - called after all ASIs are loaded
+static void InstallGInputCompatibleHooks() {
+    if (g_HooksInstalled) return;
+    g_HooksInstalled = true;
+
+    // Now check for GInput - all ASIs should be loaded by now
     ExpandButtonSpriteArray();
 
-    Events::initRwEvent += []() {
-        LoadTextures();
-    };
+    if (g_GInputLoaded) {
+        // GInput is loaded - chain with GInput's ParseToken hook
+        // Read GInput's ParseToken hook target from one of the patched call sites
+        // The call instruction at 0x719965 has been patched by GInput
+        // Format: E8 [4-byte relative offset]
+        int32_t ginputOffset = *reinterpret_cast<int32_t*>(0x719965 + 1);
+        uintptr_t ginputParseToken = 0x719965 + 5 + ginputOffset;
+        ParseToken_Original = reinterpret_cast<ParseToken_t>(ginputParseToken);
 
-    Events::shutdownRwEvent += []() {
-        UnloadTextures();
-    };
+        // Read GInput's sprite width variable pointer BEFORE we patch it
+        // GInput patches 0x718A98 to point to its fSymbolSpriteWidth
+        g_GInputSpriteWidth = *reinterpret_cast<float**>(0x718A98);
 
-    // Replace GetControllerSettingTextKeyBoard entirely (0x52FE10)
-    // This handles all ~k~~ACTION~ replacements automatically via game's InsertPlayerControlKeysInString
-    patch::RedirectJump(0x52FE10, GetControllerSettingTextKeyBoard_Thunk);
+        // Read GInput's TokenWidthHook function address to find nTokenWidth
+        // The call at 0x71A336 points to GInput's TokenWidthHook
+        // GInput's TokenWidthHook assembly:
+        //   test dl, dl     ; 84 D2 (offset 0-1)
+        //   jz short ret    ; 74 xx (offset 2-3)
+        //   sub esi, [nTokenWidth] ; 2B 35 [addr] (offset 4-9)
+        //   ret             ; C3 (offset 10)
+        int32_t tokenHookOffset = *reinterpret_cast<int32_t*>(0x71A336 + 1);
+        uintptr_t ginputTokenWidthHook = 0x71A336 + 5 + tokenHookOffset;
 
-    // Replace GetControllerSettingTextMouse entirely (0x52F390)
-    // This handles mouse button sprite tokens
-    patch::RedirectJump(0x52F390, GetControllerSettingTextMouse_Thunk);
+        // Validate the expected instruction pattern: 84 D2 74 xx 2B 35
+        uint8_t* hookBytes = reinterpret_cast<uint8_t*>(ginputTokenWidthHook);
+        if (hookBytes[0] == 0x84 && hookBytes[1] == 0xD2 &&  // test dl, dl
+            hookBytes[2] == 0x74 &&                          // jz short
+            hookBytes[4] == 0x2B && hookBytes[5] == 0x35) {  // sub esi, [mem32]
+            g_GInputTokenWidth = *reinterpret_cast<unsigned int**>(ginputTokenWidthHook + 6);
+            DebugLog("Init: GInput nTokenWidth at %p (validated)", (void*)g_GInputTokenWidth);
+        } else {
+            DebugLog("WARNING: GInput TokenWidthHook pattern mismatch, tokenWidth sync disabled");
+            g_GInputTokenWidth = nullptr;
+        }
 
-    // Hook ParseToken to render our sprite tokens (~Kxx~, ~Mxx~)
-    patch::RedirectCall(0x719965, ParseToken_Hooked);
-    patch::RedirectCall(0x71A018, ParseToken_Hooked);
-    patch::RedirectCall(0x71A2C4, ParseToken_Hooked);
+        // Now hook ParseToken to chain: our hook -> GInput's hook -> original
+        patch::RedirectCall(0x719965, ParseToken_Hooked);
+        patch::RedirectCall(0x71A018, ParseToken_Hooked);
+        patch::RedirectCall(0x71A2C4, ParseToken_Hooked);
 
-    // Variable-width sprite patches (like GInput)
-    // These make the game read our g_SymbolSpriteWidth instead of a fixed value
-    patch::SetPointer(0x718A98, &g_SymbolSpriteWidth);
-    patch::SetPointer(0x719A55, &g_SymbolSpriteWidth);
+        // Override GInput's sprite width patches to use our variable
+        // We copy GInput's width to ours when GInput handles tokens
+        patch::SetPointer(0x718A98, &g_SymbolSpriteWidth);
+        patch::SetPointer(0x719A55, &g_SymbolSpriteWidth);
+
+    } else {
+        // No GInput - install all hooks normally
+
+        // Hook ParseToken to render our sprite tokens (~Kxx~, ~Mxx~)
+        patch::RedirectCall(0x719965, ParseToken_Hooked);
+        patch::RedirectCall(0x71A018, ParseToken_Hooked);
+        patch::RedirectCall(0x71A2C4, ParseToken_Hooked);
+
+        // Variable-width sprite patches
+        // These make the game read our g_SymbolSpriteWidth instead of a fixed value
+        patch::SetPointer(0x718A98, &g_SymbolSpriteWidth);
+        patch::SetPointer(0x719A55, &g_SymbolSpriteWidth);
+    }
+
+    // These hooks are ALWAYS needed for our 5-character tokens (~Kxx~, ~Mxx~)
+    // even with GInput, because the game's default "sub esi, 3" assumes 3-char tokens
 
     // Hook for proper text width calculation with tokens
     // Patches at 0x71A181-0x71A18C create new code calling AddTokenToWidth
@@ -694,7 +988,6 @@ void InstallHooks() {
     patch::SetUShort(0x71A185, 0x5650);     // push eax; push esi
 
     // Write call instruction manually (E8 + relative offset)
-    // patch::RedirectCall doesn't work here because there's no existing call to redirect
     patch::SetUChar(0x71A187, 0xE8);  // call opcode
     uintptr_t callTarget = reinterpret_cast<uintptr_t>(&AddTokenToWidth);
     uintptr_t callAddr = 0x71A187;
@@ -708,7 +1001,35 @@ void InstallHooks() {
 
     // Hook CSprite2d::Draw call in PrintChar (0x718AE5) to enforce minimum sprite size
     // This lets the game handle render state while we just modify the rect size
+    // Note: This hook is safe with GInput - GInput doesn't hook the Draw call itself
     patch::RedirectCall(0x718AE5, ButtonSprite_Draw_Hook);
+}
+
+void InstallHooks() {
+    // Initialize debug logging first
+    InitDebugLog();
+
+    // Install non-GInput-dependent hooks immediately
+    // These don't conflict with GInput and can be installed early
+
+    // Replace GetControllerSettingTextKeyBoard entirely (0x52FE10)
+    // This handles all ~k~~ACTION~ replacements automatically via game's InsertPlayerControlKeysInString
+    patch::RedirectJump(0x52FE10, GetControllerSettingTextKeyBoard_Thunk);
+
+    // Replace GetControllerSettingTextMouse entirely (0x52F390)
+    // This handles mouse button sprite tokens
+    patch::RedirectJump(0x52F390, GetControllerSettingTextMouse_Thunk);
+
+    // Defer GInput-dependent hooks to initRwEvent when all ASIs are loaded
+    Events::initRwEvent += []() {
+        InstallGInputCompatibleHooks();
+        LoadTextures();
+    };
+
+    Events::shutdownRwEvent += []() {
+        UnloadTextures();
+        CloseDebugLog();
+    };
 }
 
 // ============================================================================
