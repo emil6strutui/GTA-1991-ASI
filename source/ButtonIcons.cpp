@@ -12,16 +12,6 @@
 
 using namespace plugin;
 
-// #region agent log - Debug helper
-static void DebugLog(const char* loc, const char* msg, unsigned int v1 = 0, unsigned int v2 = 0) {
-    FILE* f = fopen("D:\\GTA SA CLEO 5\\debug_buttonicons.log", "a");
-    if (f) {
-        fprintf(f, "[%s] %s: v1=%u (0x%X), v2=%u (0x%X)\n", loc, msg, v1, v1, v2, v2);
-        fclose(f);
-    }
-}
-// #endregion
-
 namespace ButtonIcons {
 
 // ============================================================================
@@ -30,33 +20,38 @@ namespace ButtonIcons {
 // Layout:
 // 0:       Unused (PS2Symbol=0 means no sprite)
 // 1-7:     PS2 controller buttons (original game)
-// 8-55:    Keyboard keys
-// 56-62:   Mouse buttons
-// 63:      Reserved
+// 8-75:    Keyboard keys (68 keys)
+// 76-82:   Mouse buttons (7 buttons)
+// 83-95:   Reserved
 // ============================================================================
 
-static const int MAX_EXTENDED_SPRITES = 64;
+static const int MAX_EXTENDED_SPRITES = 96;
 static CSprite2d g_ExtendedSprites[MAX_EXTENDED_SPRITES];
 
 static const int KEYBOARD_SPRITE_BASE = 8;
-static const int MOUSE_SPRITE_BASE = 56;
+static const int MOUSE_SPRITE_BASE = KEYBOARD_SPRITE_BASE + KEYBOARD_COUNT;  // 8 + 68 = 76
 
 // ============================================================================
 // KEYBOARD SPRITE NAMES
 // ============================================================================
 
 static const char* const g_KeyboardSpriteNames[KEYBOARD_COUNT] = {
-    "W", "A", "S", "D",           // Movement WASD
-    "38", "40", "37", "39",       // Arrow keys
-    "E", "Q", "F", "G", "H",      // Letter keys
-    "N", "Y", "X", "Z", "V", "C",
-    "96", "97", "98", "99",       // Numpad 0-9
-    "100", "101", "102", "103",
-    "104", "105", "110",          // Numpad dot
-    "162", "163", "160", "164",   // Modifiers (Ctrl, Shift, Alt)
-    "32", "9", "20",              // Space, Tab, CapsLock
-    "46", "36", "35",             // Del, Home, End
-    "33", "34", "13", "padenter"  // PgUp, PgDn, Enter, NumEnter
+    "W", "A", "S", "D",           // Movement WASD (0-3)
+    "38", "40", "37", "39",       // Arrow keys (4-7)
+    "E", "Q", "F", "G", "H",      // Letter keys (8-12)
+    "N", "Y", "X", "Z", "V", "C", // Letter keys (13-18)
+    "B", "I", "J", "K", "L", "M", // Letter keys (19-24)
+    "O", "P", "R", "T", "U",      // Letter keys (25-29)
+    "96", "97", "98", "99",       // Numpad 0-9 (30-33)
+    "100", "101", "102", "103",   // Numpad 4-7 (34-37)
+    "104", "105", "110",          // Numpad 8-9, dot (38-40)
+    "162", "163", "160", "164",   // Modifiers (41-44)
+    "32", "9", "20",              // Space, Tab, CapsLock (45-47)
+    "46", "36", "35",             // Del, Home, End (48-50)
+    "33", "34", "13", "padenter", // PgUp, PgDn, Enter, NumEnter (51-54)
+    "48", "49", "50", "51", "52", // Number row 0-4 (55-59)
+    "53", "54", "55", "56", "57", // Number row 5-9 (60-64)
+    "107", "106", "109"           // NUM+, NUM*, NUM- (65-67)
 };
 
 // ============================================================================
@@ -158,7 +153,7 @@ static void UnloadTextures() {
 // ============================================================================
 
 static const char* GetSpriteTokenForKeyCode(unsigned int keyCode) {
-    // ASCII letter keys
+    // ASCII letter keys (all A-Z)
     switch (keyCode) {
         case 'W': case 'w': return "~K00~";
         case 'A': case 'a': return "~K01~";
@@ -175,7 +170,29 @@ static const char* GetSpriteTokenForKeyCode(unsigned int keyCode) {
         case 'Z': case 'z': return "~K16~";
         case 'V': case 'v': return "~K17~";
         case 'C': case 'c': return "~K18~";
-        case ' ': return "~K34~";
+        case 'B': case 'b': return "~K19~";
+        case 'I': case 'i': return "~K20~";
+        case 'J': case 'j': return "~K21~";
+        case 'K': case 'k': return "~K22~";
+        case 'L': case 'l': return "~K23~";
+        case 'M': case 'm': return "~K24~";
+        case 'O': case 'o': return "~K25~";
+        case 'P': case 'p': return "~K26~";
+        case 'R': case 'r': return "~K27~";
+        case 'T': case 't': return "~K28~";
+        case 'U': case 'u': return "~K29~";
+        case ' ': return "~K45~";
+        // Number row keys
+        case '0': return "~K55~";
+        case '1': return "~K56~";
+        case '2': return "~K57~";
+        case '3': return "~K58~";
+        case '4': return "~K59~";
+        case '5': return "~K60~";
+        case '6': return "~K61~";
+        case '7': return "~K62~";
+        case '8': return "~K63~";
+        case '9': return "~K64~";
     }
     
     // Non-ASCII keys (RsKeyCodes)
@@ -184,30 +201,30 @@ static const char* GetSpriteTokenForKeyCode(unsigned int keyCode) {
         case rsDOWN:  return "~K05~";
         case rsLEFT:  return "~K06~";
         case rsRIGHT: return "~K07~";
-        case rsPADINS:   return "~K19~";
-        case rsPADEND:   return "~K20~";
-        case rsPADDOWN:  return "~K21~";
-        case rsPADPGDN:  return "~K22~";
-        case rsPADLEFT:  return "~K23~";
-        case rsPAD5:     return "~K24~";
-        case rsPADRIGHT: return "~K25~";
-        case rsPADHOME:  return "~K26~";
-        case rsPADUP:    return "~K27~";
-        case rsPADPGUP:  return "~K28~";
-        case rsPADDEL:   return "~K29~";
-        case rsLCTRL:  return "~K30~";
-        case rsRCTRL:  return "~K31~";
-        case rsLSHIFT: return "~K32~";
-        case rsLALT:   return "~K33~";
-        case rsTAB:      return "~K35~";
-        case rsCAPSLK:   return "~K36~";
-        case rsDEL:      return "~K37~";
-        case rsHOME:     return "~K38~";
-        case rsEND:      return "~K39~";
-        case rsPGUP:     return "~K40~";
-        case rsPGDN:     return "~K41~";
-        case rsENTER:    return "~K42~";
-        case rsPADENTER: return "~K43~";
+        case rsPADINS:   return "~K30~";
+        case rsPADEND:   return "~K31~";
+        case rsPADDOWN:  return "~K32~";
+        case rsPADPGDN:  return "~K33~";
+        case rsPADLEFT:  return "~K34~";
+        case rsPAD5:     return "~K35~";
+        case rsPADRIGHT: return "~K36~";
+        case rsPADHOME:  return "~K37~";
+        case rsPADUP:    return "~K38~";
+        case rsPADPGUP:  return "~K39~";
+        case rsPADDEL:   return "~K40~";
+        case rsLCTRL:  return "~K41~";
+        case rsRCTRL:  return "~K42~";
+        case rsLSHIFT: return "~K43~";
+        case rsLALT:   return "~K44~";
+        case rsTAB:      return "~K46~";
+        case rsCAPSLK:   return "~K47~";
+        case rsDEL:      return "~K48~";
+        case rsHOME:     return "~K49~";
+        case rsEND:      return "~K50~";
+        case rsPGUP:     return "~K51~";
+        case rsPGDN:     return "~K52~";
+        case rsENTER:    return "~K53~";
+        case rsPADENTER: return "~K54~";
         default: return nullptr;
     }
 }
@@ -297,21 +314,11 @@ static void* g_ControllerThis;
 static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type) {
     void* thisPtr = g_ControllerThis;
     
-    // #region agent log - H4: Log every call to this function
-    DebugLog("KeyBoard_Impl", "entry", reinterpret_cast<uintptr_t>(thisPtr), (action << 16) | type);
-    // #endregion
-    
     memset(g_KeyNameBuffer, 0, 0x30);
     
     // Sanity checks
-    if (!thisPtr || thisPtr == reinterpret_cast<void*>(0xFFFFFFFF)) {
-        DebugLog("KeyBoard_Impl", "BAD_THISPTR", reinterpret_cast<uintptr_t>(thisPtr), 0);
-        return nullptr;
-    }
-    if (action < 0 || action > 58 || type < 0 || type > 3) {
-        DebugLog("KeyBoard_Impl", "BAD_ACTION_TYPE", action, type);
-        return nullptr;
-    }
+    if (!thisPtr || thisPtr == reinterpret_cast<void*>(0xFFFFFFFF)) return nullptr;
+    if (action < 0 || action > 58 || type < 0 || type > 3) return nullptr;
     
     unsigned int* thisAsInt = reinterpret_cast<unsigned int*>(thisPtr);
     unsigned int keyCode = thisAsInt[8 * action + 2 * type + 0x2DC];
@@ -328,24 +335,19 @@ static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type)
         
         // F1-F12 keys
         if (keyCode >= 0x3E9 && keyCode <= 0x3F4) {
-            // #region agent log - H3: Log F1-F12 handling
-            DebugLog("F1-F12", "entry", keyCode, keyCode - 1000);
-            // #endregion
             char* fncText = CText_Get("FEC_FNC");
-            // #region agent log - H3: Log CText_Get result
-            DebugLog("F1-F12", "CText_Get_result", reinterpret_cast<uintptr_t>(fncText), 0);
-            // #endregion
             if (fncText) {
                 CMessages_InsertNumberInString(fncText, keyCode - 1000, -1, -1, -1, -1, -1, g_NumberBuffer);
-                // #region agent log - H3: Log after InsertNumberInString
-                DebugLog("F1-F12", "InsertNum_done", reinterpret_cast<uintptr_t>(g_NumberBuffer), 0);
-                // #endregion
                 return g_NumberBuffer;
             }
-            // Fallback if CText_Get returns invalid
             sprintf(g_KeyNameBuffer, "F%d", keyCode - 1000);
             return g_KeyNameBuffer;
         }
+        
+        // Numpad operators - check for sprite token first
+        if (keyCode == 0x400 && g_Enabled && g_TexturesLoaded) { strcpy(g_SpriteTokenBuffer, "~K66~"); return g_SpriteTokenBuffer; }  // NUM*
+        if (keyCode == 0x401 && g_Enabled && g_TexturesLoaded) { strcpy(g_SpriteTokenBuffer, "~K65~"); return g_SpriteTokenBuffer; }  // NUM+
+        if (keyCode == 0x402 && g_Enabled && g_TexturesLoaded) { strcpy(g_SpriteTokenBuffer, "~K67~"); return g_SpriteTokenBuffer; }  // NUM-
         
         // Other special keys - return GXT text
         switch (keyCode) {
@@ -439,6 +441,57 @@ __declspec(naked) void GetControllerSettingTextKeyBoard_Thunk() {
 }
 
 // ============================================================================
+// GetControllerSettingTextMouse HOOK (0x52F390)
+// ============================================================================
+
+// GetMouseButtonAssociatedWithAction at 0x52F580
+using GetMouseButton_t = unsigned int(__thiscall*)(void*, int);
+static GetMouseButton_t GetMouseButtonAssociatedWithAction = reinterpret_cast<GetMouseButton_t>(0x52F580);
+
+static char g_MouseTokenBuffer[8];
+
+static char* __cdecl GetControllerSettingTextMouse_Impl(int action) {
+    void* thisPtr = g_ControllerThis;
+    
+    if (!thisPtr || thisPtr == reinterpret_cast<void*>(0xFFFFFFFF)) return nullptr;
+    if (action < 0 || action > 58) return nullptr;
+    
+    unsigned int mouseCode = GetMouseButtonAssociatedWithAction(thisPtr, action);
+    if (mouseCode == 0) return nullptr;  // Unbound
+    
+    // Return sprite token if enabled
+    const char* token = GetSpriteTokenForMouseCode(mouseCode);
+    if (token && g_Enabled && g_TexturesLoaded) {
+        strcpy(g_MouseTokenBuffer, token);
+        return g_MouseTokenBuffer;
+    }
+    
+    // Fallback to GXT text
+    switch (mouseCode) {
+        case rsMOUSE_LEFT_BUTTON:       return CText_Get("FEC_MSL");
+        case rsMOUSE_MIDDLE_BUTTON:     return CText_Get("FEC_MSM");
+        case rsMOUSE_RIGHT_BUTTON:      return CText_Get("FEC_MSR");
+        case rsMOUSE_WHEEL_UP_BUTTON:   return CText_Get("FEC_MWF");
+        case rsMOUSE_WHEEL_DOWN_BUTTON: return CText_Get("FEC_MWB");
+        case rsMOUSE_X1_BUTTON:         return CText_Get("FEC_MXO");
+        case rsMOUSE_X2_BUTTON:         return CText_Get("FEC_MXT");
+        default: return nullptr;
+    }
+}
+
+// Naked thunk for mouse - __thiscall with ret 4 (only 1 parameter)
+__declspec(naked) void GetControllerSettingTextMouse_Thunk() {
+    __asm {
+        mov g_ControllerThis, ecx
+        mov eax, [esp+4]
+        push eax
+        call GetControllerSettingTextMouse_Impl
+        add esp, 4
+        ret 4
+    }
+}
+
+// ============================================================================
 // ParseToken HOOK
 // ============================================================================
 
@@ -515,6 +568,10 @@ void InstallHooks() {
     // Replace GetControllerSettingTextKeyBoard entirely (0x52FE10)
     // This handles all ~k~~ACTION~ replacements automatically via game's InsertPlayerControlKeysInString
     patch::RedirectJump(0x52FE10, GetControllerSettingTextKeyBoard_Thunk);
+    
+    // Replace GetControllerSettingTextMouse entirely (0x52F390)
+    // This handles mouse button sprite tokens
+    patch::RedirectJump(0x52F390, GetControllerSettingTextMouse_Thunk);
     
     // Hook GetTextRect to enlarge background box for sprite tokens
     // This avoids line-breaking corruption that GetStringWidth hooks cause

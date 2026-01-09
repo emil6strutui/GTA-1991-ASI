@@ -10,70 +10,54 @@ constexpr float ICON_SIZE = 20.0f;
 
 // ============================================================================
 // KEYBOARD KEY INDICES
-// Sprite indices 8-55 in the extended array
+// Sprite indices 8-75 in the extended array (68 keys)
 // ============================================================================
 
 enum KeyboardKey {
-    // Movement keys (indices 8-15)
+    // Movement keys (0-3)
     KEY_W = 0,
     KEY_A,
     KEY_S,
     KEY_D,
+    
+    // Arrow keys (4-7)
     KEY_UP,
     KEY_DOWN,
     KEY_LEFT,
     KEY_RIGHT,
     
-    // Letter keys (indices 16-26)
-    KEY_E,
-    KEY_Q,
-    KEY_F,
-    KEY_G,
-    KEY_H,
-    KEY_N,
-    KEY_Y,
-    KEY_X,
-    KEY_Z,
-    KEY_V,
-    KEY_C,
+    // Letter keys (8-29)
+    KEY_E, KEY_Q, KEY_F, KEY_G, KEY_H,
+    KEY_N, KEY_Y, KEY_X, KEY_Z, KEY_V, KEY_C,
+    KEY_B, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
+    KEY_O, KEY_P, KEY_R, KEY_T, KEY_U,
     
-    // Numpad (indices 27-37)
-    KEY_NUM0,
-    KEY_NUM1,
-    KEY_NUM2,
-    KEY_NUM3,
-    KEY_NUM4,
-    KEY_NUM5,
-    KEY_NUM6,
-    KEY_NUM7,
-    KEY_NUM8,
-    KEY_NUM9,
+    // Numpad digits (30-40)
+    KEY_NUM0, KEY_NUM1, KEY_NUM2, KEY_NUM3, KEY_NUM4,
+    KEY_NUM5, KEY_NUM6, KEY_NUM7, KEY_NUM8, KEY_NUM9,
     KEY_NUMDOT,
     
-    // Modifiers (indices 38-41)
-    KEY_LCTRL,
-    KEY_RCTRL,
-    KEY_LSHIFT,
-    KEY_LALT,
+    // Modifiers (41-44)
+    KEY_LCTRL, KEY_RCTRL, KEY_LSHIFT, KEY_LALT,
     
-    // Special keys (indices 42-51)
-    KEY_SPACE,
-    KEY_TAB,
-    KEY_CAPSLOCK,
-    KEY_DEL,
-    KEY_HOME,
-    KEY_END,
-    KEY_PGUP,
-    KEY_PGDN,
-    KEY_RETURN,
-    KEY_ENT,
+    // Special keys (45-54)
+    KEY_SPACE, KEY_TAB, KEY_CAPSLOCK,
+    KEY_DEL, KEY_HOME, KEY_END,
+    KEY_PGUP, KEY_PGDN, KEY_RETURN, KEY_ENT,
     
-    KEYBOARD_COUNT
+    // Number row keys (55-64)
+    KEY_0, KEY_1, KEY_2, KEY_3, KEY_4,
+    KEY_5, KEY_6, KEY_7, KEY_8, KEY_9,
+    
+    // Numpad operators (65-67)
+    KEY_NUMPLUS, KEY_NUMMUL, KEY_NUMMINUS,
+    
+    KEYBOARD_COUNT  // = 68
 };
 
 // ============================================================================
 // MOUSE BUTTON INDICES
-// Sprite indices 56-62 in the extended array
+// Sprite indices 76-82 in the extended array
 // ============================================================================
 
 enum MouseButton : int {
