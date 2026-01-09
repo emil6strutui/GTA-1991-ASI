@@ -549,6 +549,52 @@ char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag
 }
 
 // ============================================================================
+// MINIMUM SIZE ENFORCEMENT - Hook for CSprite2d::Draw
+// ============================================================================
+
+// Minimum sprite height (in screen pixels)
+static const float MIN_SPRITE_HEIGHT = 22.0f;
+
+// Original Draw function
+using CSprite2d_Draw_t = void(__thiscall*)(CSprite2d*, const CRect&, const CRGBA&);
+static CSprite2d_Draw_t CSprite2d_Draw_Original = reinterpret_cast<CSprite2d_Draw_t>(0x728350);
+
+// Hook for CSprite2d::Draw called from PrintChar (0x718AE5)
+// Enforces minimum size and crisp filtering for our extended sprites
+void __fastcall ButtonSprite_Draw_Hook(CSprite2d* sprite, void* edx, const CRect& rect, const CRGBA& color) {
+    // Check if this sprite is one of our extended sprites (index >= 15)
+    // by comparing the sprite pointer to our array
+    ptrdiff_t offset = reinterpret_cast<uintptr_t>(sprite) - reinterpret_cast<uintptr_t>(g_ExtendedSprites);
+    int spriteIndex = static_cast<int>(offset / sizeof(CSprite2d));
+
+    // Only apply minimum size to our extended sprites (keyboard/mouse icons)
+    if (spriteIndex >= KEYBOARD_SPRITE_BASE && spriteIndex < MAX_EXTENDED_SPRITES) {
+        float currentHeight = rect.bottom - rect.top;
+
+        if (currentHeight < MIN_SPRITE_HEIGHT && currentHeight > 0.0f) {
+            // Get aspect ratio from our stored widths
+            float aspectRatio = g_ExtendedSpriteWidths[spriteIndex] / 17.0f;
+
+            // Create enlarged rect, keeping top-left position
+            float newHeight = MIN_SPRITE_HEIGHT;
+            float newWidth = newHeight * aspectRatio;
+
+            CRect enlargedRect;
+            enlargedRect.left = rect.left;
+            enlargedRect.top = rect.top;
+            enlargedRect.right = rect.left + newWidth;
+            enlargedRect.bottom = rect.top + newHeight;
+
+            CSprite2d_Draw_Original(sprite, enlargedRect, color);
+            return;
+        }
+    }
+
+    // Default: call original with unmodified rect
+    CSprite2d_Draw_Original(sprite, rect, color);
+}
+
+// ============================================================================
 // PUBLIC API: Direct Drawing
 // ============================================================================
 
@@ -659,6 +705,10 @@ void InstallHooks() {
 
     // Hook for GetNumberLines to use correct token width (fixes "sub esi, 3" for 5-char tokens)
     patch::RedirectCall(0x71A336, TokenWidthHook);
+
+    // Hook CSprite2d::Draw call in PrintChar (0x718AE5) to enforce minimum sprite size
+    // This lets the game handle render state while we just modify the rect size
+    patch::RedirectCall(0x718AE5, ButtonSprite_Draw_Hook);
 }
 
 // ============================================================================
