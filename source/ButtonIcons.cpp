@@ -9,6 +9,7 @@
 
 #include <cstring>
 #include <cstdio>
+#include <intrin.h>  // For _ReturnAddress()
 
 using namespace plugin;
 
@@ -19,17 +20,18 @@ namespace ButtonIcons {
 // ============================================================================
 // Layout:
 // 0:       Unused (PS2Symbol=0 means no sprite)
-// 1-7:     PS2 controller buttons (original game)
-// 8-75:    Keyboard keys (68 keys)
-// 76-82:   Mouse buttons (7 buttons)
-// 83-95:   Reserved
+// 1-14:    PS2 controller buttons (original game) - DO NOT USE
+// 15-82:   Keyboard keys (68 keys)
+// 83-89:   Mouse buttons (7 buttons)
+// 90-95:   Reserved
 // ============================================================================
 
 static const int MAX_EXTENDED_SPRITES = 96;
 static CSprite2d g_ExtendedSprites[MAX_EXTENDED_SPRITES];
 
-static const int KEYBOARD_SPRITE_BASE = 8;
-static const int MOUSE_SPRITE_BASE = KEYBOARD_SPRITE_BASE + KEYBOARD_COUNT;  // 8 + 68 = 76
+// Start at 15 to avoid ALL original PS2 symbol indices (1-14)
+static const int KEYBOARD_SPRITE_BASE = 15;
+static const int MOUSE_SPRITE_BASE = KEYBOARD_SPRITE_BASE + KEYBOARD_COUNT;  // 15 + 68 = 83
 
 // ============================================================================
 // KEYBOARD SPRITE NAMES
@@ -495,20 +497,37 @@ __declspec(naked) void GetControllerSettingTextMouse_Thunk() {
 // ParseToken HOOK
 // ============================================================================
 
+static uint8_t* g_PS2Symbol = reinterpret_cast<uint8_t*>(0xC71A54);
+
 using ParseToken_t = char*(__cdecl*)(char*, CRGBA&, bool, char*);
 static ParseToken_t ParseToken_Original = reinterpret_cast<ParseToken_t>(0x718F00);
-static uint8_t* g_PS2Symbol = reinterpret_cast<uint8_t*>(0xC71A54);
 
 char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag) {
     if (!text || !g_Enabled || !g_TexturesLoaded) {
         return ParseToken_Original(text, color, isBlip, tag);
     }
     
+    // Check return address to determine if we're in a RENDERING context
+    // GetNumberLines returns to ~0x71A2C9 - this is MEASUREMENT, don't set PS2Symbol
+    // RenderFontBuffer returns to ~0x71996A - this is RENDERING, OK to set
+    // PrintString returns to ~0x71A01D - this is RENDERING, OK to set
+    void* retAddr = _ReturnAddress();
+    uintptr_t ret = reinterpret_cast<uintptr_t>(retAddr);
+    
+    // GetNumberLines call site: 0x71A2C4, returns to 0x71A2C9
+    // If return address is in GetNumberLines range, skip setting PS2Symbol
+    bool isMeasurementContext = (ret >= 0x71A2C0 && ret <= 0x71A2D0);
+    
     // Check for keyboard token: ~Kxx~
     if (text[0] == '~' && text[1] == 'K') {
         int keyIndex = ParseKeyboardToken(text);
         if (keyIndex >= 0 && keyIndex < KEYBOARD_COUNT) {
-            *g_PS2Symbol = static_cast<uint8_t>(KEYBOARD_SPRITE_BASE + keyIndex);
+            uint8_t spriteIdx = static_cast<uint8_t>(KEYBOARD_SPRITE_BASE + keyIndex);
+            
+            // Only set PS2Symbol in rendering context, not measurement!
+            if (!isMeasurementContext) {
+                *g_PS2Symbol = spriteIdx;
+            }
             return text + 5;
         }
     }
@@ -517,7 +536,12 @@ char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag
     if (text[0] == '~' && text[1] == 'M' && text[4] == '~') {
         char d1 = text[2], d2 = text[3];
         if (d1 == '0' && d2 >= '0' && d2 <= '6') {
-            *g_PS2Symbol = static_cast<uint8_t>(MOUSE_SPRITE_BASE + (d2 - '0'));
+            uint8_t spriteIdx = static_cast<uint8_t>(MOUSE_SPRITE_BASE + (d2 - '0'));
+            
+            // Only set PS2Symbol in rendering context, not measurement!
+            if (!isMeasurementContext) {
+                *g_PS2Symbol = spriteIdx;
+            }
             return text + 5;
         }
     }
