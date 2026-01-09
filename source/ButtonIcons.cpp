@@ -28,6 +28,9 @@ namespace ButtonIcons {
 
 static const int MAX_EXTENDED_SPRITES = 96;
 static CSprite2d g_ExtendedSprites[MAX_EXTENDED_SPRITES];
+static float g_ExtendedSpriteWidths[MAX_EXTENDED_SPRITES];
+static float g_SymbolSpriteWidth = 17.0f;
+static unsigned int g_TokenWidth = 3;  // Token length for GetNumberLines sub esi fix
 
 // Start at 15 to avoid ALL original PS2 symbol indices (1-14)
 static const int KEYBOARD_SPRITE_BASE = 15;
@@ -98,8 +101,19 @@ enum RsKeyCodes : int {
 // ============================================================================
 
 static void ExpandButtonSpriteArray() {
+    // Copy original sprite array (15 PS2 button sprites)
     CSprite2d* originalArray = reinterpret_cast<CSprite2d*>(0xC71AD8);
     memcpy(g_ExtendedSprites, originalArray, 15 * sizeof(CSprite2d));
+
+    // Copy original sprite widths (game stores these at 0xC71A90)
+    float* originalWidths = reinterpret_cast<float*>(0xC71A90);
+    memcpy(g_ExtendedSpriteWidths, originalWidths, 15 * sizeof(float));
+
+    // Initialize extended sprite widths to default
+    for (int i = 15; i < MAX_EXTENDED_SPRITES; i++) {
+        g_ExtendedSpriteWidths[i] = 17.0f;
+    }
+
     patch::SetPointer(0x718AE1, g_ExtendedSprites);
 }
 
@@ -109,26 +123,46 @@ static void ExpandButtonSpriteArray() {
 
 static void LoadTextures() {
     if (g_TexturesLoaded) return;
-    
+
     g_TxdSlot = CTxdStore::AddTxdSlot("buttonicons");
     if (g_TxdSlot == -1) return;
-    
+
     if (!CTxdStore::LoadTxd(g_TxdSlot, "models\\pcbtns.txd")) {
         CTxdStore::RemoveTxdSlot(g_TxdSlot);
         g_TxdSlot = -1;
         return;
     }
-    
+
     CTxdStore::AddRef(g_TxdSlot);
     CTxdStore::SetCurrentTxd(g_TxdSlot);
-    
+
+    // Load keyboard sprites
     for (int i = 0; i < KEYBOARD_COUNT; i++) {
-        g_ExtendedSprites[KEYBOARD_SPRITE_BASE + i].SetTexture(const_cast<char*>(g_KeyboardSpriteNames[i]));
+        int idx = KEYBOARD_SPRITE_BASE + i;
+        g_ExtendedSprites[idx].SetTexture(const_cast<char*>(g_KeyboardSpriteNames[i]));
     }
+    // Load mouse sprites
     for (int i = 0; i < MOUSE_COUNT; i++) {
-        g_ExtendedSprites[MOUSE_SPRITE_BASE + i].SetTexture(const_cast<char*>(g_MouseSpriteNames[i]));
+        int idx = MOUSE_SPRITE_BASE + i;
+        g_ExtendedSprites[idx].SetTexture(const_cast<char*>(g_MouseSpriteNames[i]));
     }
-    
+
+    // Calculate widths based on texture aspect ratio (like GInput does)
+    for (int i = KEYBOARD_SPRITE_BASE; i < MOUSE_SPRITE_BASE + MOUSE_COUNT; i++) {
+        RwTexture* tex = g_ExtendedSprites[i].m_pTexture;
+        if (tex) {
+            RwRaster* raster = RwTextureGetRaster(tex);
+            if (raster) {
+                int width = RwRasterGetWidth(raster);
+                int height = RwRasterGetHeight(raster);
+                if (height > 0) {
+                    float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+                    g_ExtendedSpriteWidths[i] = 17.0f * aspectRatio;
+                }
+            }
+        }
+    }
+
     CTxdStore::PopCurrentTxd();
     g_TexturesLoaded = true;
 }
@@ -258,37 +292,10 @@ static int ParseKeyboardToken(const char* text) {
 }
 
 // ============================================================================
-// GetTextRect HOOK - Enlarge background box for sprite tokens
+// Font scale Y pointer (used by AddTokenToWidth)
 // ============================================================================
 
 static float* g_FontScaleY = reinterpret_cast<float*>(0xC71A68);
-
-using GetTextRect_t = void(__cdecl*)(CRect*, float, float, const char*);
-static GetTextRect_t GetTextRect_Original = reinterpret_cast<GetTextRect_t>(0x71A620);
-
-static int CountCustomTokens(const char* text) {
-    int count = 0;
-    for (const char* p = text; *p; p++) {
-        if (*p == '~' && (p[1] == 'K' || p[1] == 'M') && 
-            p[2] >= '0' && p[2] <= '9' && p[3] >= '0' && p[3] <= '9' && p[4] == '~') {
-            count++;
-            p += 4;
-        }
-    }
-    return count;
-}
-
-void __cdecl GetTextRect_Hooked(CRect* rect, float x, float y, const char* text) {
-    // Call original first
-    GetTextRect_Original(rect, x, y, text);
-    
-    // Count our custom tokens and enlarge rect for sprite width
-    int tokenCount = CountCustomTokens(text);
-    if (tokenCount > 0) {
-        float extraWidth = tokenCount * 17.0f * (*g_FontScaleY);
-        rect->right += extraWidth;
-    }
-}
 
 // ============================================================================
 // GetControllerSettingTextKeyBoard HOOK (0x52FE10)
@@ -504,49 +511,41 @@ static ParseToken_t ParseToken_Original = reinterpret_cast<ParseToken_t>(0x718F0
 
 char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag) {
     if (!text || !g_Enabled || !g_TexturesLoaded) {
+        g_TokenWidth = 3;  // Default for original tokens
         return ParseToken_Original(text, color, isBlip, tag);
     }
-    
-    // Check return address to determine if we're in a RENDERING context
-    // GetNumberLines returns to ~0x71A2C9 - this is MEASUREMENT, don't set PS2Symbol
-    // RenderFontBuffer returns to ~0x71996A - this is RENDERING, OK to set
-    // PrintString returns to ~0x71A01D - this is RENDERING, OK to set
-    void* retAddr = _ReturnAddress();
-    uintptr_t ret = reinterpret_cast<uintptr_t>(retAddr);
-    
-    // GetNumberLines call site: 0x71A2C4, returns to 0x71A2C9
-    // If return address is in GetNumberLines range, skip setting PS2Symbol
-    bool isMeasurementContext = (ret >= 0x71A2C0 && ret <= 0x71A2D0);
-    
+
     // Check for keyboard token: ~Kxx~
     if (text[0] == '~' && text[1] == 'K') {
         int keyIndex = ParseKeyboardToken(text);
         if (keyIndex >= 0 && keyIndex < KEYBOARD_COUNT) {
             uint8_t spriteIdx = static_cast<uint8_t>(KEYBOARD_SPRITE_BASE + keyIndex);
-            
-            // Only set PS2Symbol in rendering context, not measurement!
-            if (!isMeasurementContext) {
-                *g_PS2Symbol = spriteIdx;
-            }
+            *g_PS2Symbol = spriteIdx;
+            g_SymbolSpriteWidth = g_ExtendedSpriteWidths[spriteIdx];
+            g_TokenWidth = 5;  // Our tokens are 5 chars: ~Kxx~
             return text + 5;
         }
     }
-    
+
     // Check for mouse token: ~Mxx~
     if (text[0] == '~' && text[1] == 'M' && text[4] == '~') {
         char d1 = text[2], d2 = text[3];
         if (d1 == '0' && d2 >= '0' && d2 <= '6') {
             uint8_t spriteIdx = static_cast<uint8_t>(MOUSE_SPRITE_BASE + (d2 - '0'));
-            
-            // Only set PS2Symbol in rendering context, not measurement!
-            if (!isMeasurementContext) {
-                *g_PS2Symbol = spriteIdx;
-            }
+            *g_PS2Symbol = spriteIdx;
+            g_SymbolSpriteWidth = g_ExtendedSpriteWidths[spriteIdx];
+            g_TokenWidth = 5;  // Our tokens are 5 chars: ~Mxx~
             return text + 5;
         }
     }
-    
-    return ParseToken_Original(text, color, isBlip, tag);
+
+    // For original game tokens, let original handler deal with it
+    g_TokenWidth = 3;  // Original tokens are 3 chars: ~x~
+    char* result = ParseToken_Original(text, color, isBlip, tag);
+    if (*g_PS2Symbol != 0) {
+        g_SymbolSpriteWidth = g_ExtendedSpriteWidths[*g_PS2Symbol];
+    }
+    return result;
 }
 
 // ============================================================================
@@ -575,36 +574,91 @@ void DrawIconColored(MouseButton button, float x, float y, float size,
 }
 
 // ============================================================================
+// AddTokenToWidth HOOK - For proper text width calculation
+// ============================================================================
+
+// This is called during text width/layout calculation to account for sprite width
+char* __stdcall AddTokenToWidth(char* pText, float& fPos) {
+    CRGBA tempColor;
+    char* pNewPtr = ParseToken_Hooked(pText, tempColor, true, nullptr) - 1;
+
+    if (*g_PS2Symbol != 0) {
+        // Get current font scale Y from game
+        float fontScaleY = *g_FontScaleY;
+        float widthToAdd = g_SymbolSpriteWidth * fontScaleY;
+        *g_PS2Symbol = 0;  // Reset after measuring
+        fPos += widthToAdd;
+    }
+
+    return pNewPtr;
+}
+
+// ============================================================================
+// TokenWidthHook - Fix "sub esi, 3" in GetNumberLines for variable-length tokens
+// ============================================================================
+
+// GetNumberLines does "sub esi, 3" when PS2Symbol is set, assuming 3-char tokens.
+// Our tokens are 5 chars (~Kxx~, ~Mxx~), so we hook to use g_TokenWidth instead.
+void __declspec(naked) TokenWidthHook() {
+    __asm {
+        test    dl, dl
+        jz      TokenWidthHook_Return
+        sub     esi, g_TokenWidth
+    TokenWidthHook_Return:
+        ret
+    }
+}
+
+// ============================================================================
 // INSTALLATION
 // ============================================================================
 
 void InstallHooks() {
     ExpandButtonSpriteArray();
-    
+
     Events::initRwEvent += []() {
         LoadTextures();
     };
-    
+
     Events::shutdownRwEvent += []() {
         UnloadTextures();
     };
-    
+
     // Replace GetControllerSettingTextKeyBoard entirely (0x52FE10)
     // This handles all ~k~~ACTION~ replacements automatically via game's InsertPlayerControlKeysInString
     patch::RedirectJump(0x52FE10, GetControllerSettingTextKeyBoard_Thunk);
-    
+
     // Replace GetControllerSettingTextMouse entirely (0x52F390)
     // This handles mouse button sprite tokens
     patch::RedirectJump(0x52F390, GetControllerSettingTextMouse_Thunk);
-    
-    // Hook GetTextRect to enlarge background box for sprite tokens
-    // This avoids line-breaking corruption that GetStringWidth hooks cause
-    patch::RedirectCall(0x71A77B, GetTextRect_Hooked);  // Called from CFont::PrintString
-    
+
     // Hook ParseToken to render our sprite tokens (~Kxx~, ~Mxx~)
     patch::RedirectCall(0x719965, ParseToken_Hooked);
     patch::RedirectCall(0x71A018, ParseToken_Hooked);
     patch::RedirectCall(0x71A2C4, ParseToken_Hooked);
+
+    // Variable-width sprite patches (like GInput)
+    // These make the game read our g_SymbolSpriteWidth instead of a fixed value
+    patch::SetPointer(0x718A98, &g_SymbolSpriteWidth);
+    patch::SetPointer(0x719A55, &g_SymbolSpriteWidth);
+
+    // Hook for proper text width calculation with tokens
+    // Patches at 0x71A181-0x71A18C create new code calling AddTokenToWidth
+    patch::SetUInt(0x71A181, 0x0C24448D);   // lea eax, [esp+0Ch]
+    patch::SetUShort(0x71A185, 0x5650);     // push eax; push esi
+
+    // Write call instruction manually (E8 + relative offset)
+    // patch::RedirectCall doesn't work here because there's no existing call to redirect
+    patch::SetUChar(0x71A187, 0xE8);  // call opcode
+    uintptr_t callTarget = reinterpret_cast<uintptr_t>(&AddTokenToWidth);
+    uintptr_t callAddr = 0x71A187;
+    int32_t relativeOffset = static_cast<int32_t>(callTarget - (callAddr + 5));
+    patch::SetInt(0x71A188, relativeOffset);
+
+    patch::SetUInt(0x71A18C, 0x08EBF08B);   // mov esi, eax; jmp +8
+
+    // Hook for GetNumberLines to use correct token width (fixes "sub esi, 3" for 5-char tokens)
+    patch::RedirectCall(0x71A336, TokenWidthHook);
 }
 
 // ============================================================================
