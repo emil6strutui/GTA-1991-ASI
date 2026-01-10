@@ -30,7 +30,7 @@ static bool IsGInputLoaded() {
 // EXTENDED SPRITE ARRAY
 // ============================================================================
 
-static const int MAX_EXTENDED_SPRITES = 128;
+static const int MAX_EXTENDED_SPRITES = 150;
 static CSprite2d g_ExtendedSprites[MAX_EXTENDED_SPRITES];
 static float g_ExtendedSpriteWidths[MAX_EXTENDED_SPRITES];
 static float g_SymbolSpriteWidth = 17.0f;
@@ -62,7 +62,12 @@ static const char* const g_KeyboardSpriteNames[KEYBOARD_COUNT] = {
     "33", "34", "13", "padenter",
     "48", "49", "50", "51", "52",
     "53", "54", "55", "56", "57",
-    "107", "106", "109"
+    "107", "106", "109",
+    // Insert key (68)
+    "45",
+    // Function keys F1-F12 (69-80)
+    "112", "113", "114", "115", "116", "117",
+    "118", "119", "120", "121", "122", "123"
 };
 
 static const char* const g_MouseSpriteNames[MOUSE_COUNT] = {
@@ -92,7 +97,7 @@ enum RsKeyCodes : int {
     rsLCTRL = 1049, rsRCTRL = 1050, rsLSHIFT = 1046, rsLALT = 1051,
     rsTAB = 1043, rsCAPSLK = 1044, rsDEL = 1014,
     rsHOME = 1015, rsEND = 1016, rsPGUP = 1017, rsPGDN = 1018,
-    rsENTER = 1045, rsPADENTER = 1039,
+    rsENTER = 1045, rsPADENTER = 1039, rsINS = 1013,
     rsMOUSE_LEFT_BUTTON = 1, rsMOUSE_MIDDLE_BUTTON = 2, rsMOUSE_RIGHT_BUTTON = 3,
     rsMOUSE_WHEEL_UP_BUTTON = 4, rsMOUSE_WHEEL_DOWN_BUTTON = 5,
     rsMOUSE_X1_BUTTON = 6, rsMOUSE_X2_BUTTON = 7,
@@ -196,10 +201,16 @@ static void UnloadTextures() {
     if (!g_SpriteArray) return;
 
     for (int i = 0; i < KEYBOARD_COUNT; i++) {
-        g_SpriteArray[KEYBOARD_SPRITE_BASE + i].Delete();
+        CSprite2d& sprite = g_SpriteArray[KEYBOARD_SPRITE_BASE + i];
+        if (sprite.m_pTexture) {
+            sprite.Delete();
+        }
     }
     for (int i = 0; i < MOUSE_COUNT; i++) {
-        g_SpriteArray[MOUSE_SPRITE_BASE + i].Delete();
+        CSprite2d& sprite = g_SpriteArray[MOUSE_SPRITE_BASE + i];
+        if (sprite.m_pTexture) {
+            sprite.Delete();
+        }
     }
 
     if (g_TxdSlot != -1) {
@@ -283,6 +294,7 @@ static const char* GetSpriteTokenForKeyCode(unsigned int keyCode) {
         case rsPGDN:     return "~K52~";
         case rsENTER:    return "~K53~";
         case rsPADENTER: return "~K54~";
+        case rsINS:      return "~K68~";
         default: return nullptr;
     }
 }
@@ -355,7 +367,15 @@ static char* __cdecl GetControllerSettingTextKeyBoard_Impl(int action, int type)
             return g_SpriteTokenBuffer;
         }
 
+        // F1-F12 keys (0x3E9 = 1001 = F1, 0x3F4 = 1012 = F12)
         if (keyCode >= 0x3E9 && keyCode <= 0x3F4) {
+            if (g_Enabled && g_TexturesLoaded) {
+                // F1 = index 69, F12 = index 80
+                int fKeyIndex = 69 + (keyCode - 0x3E9);
+                sprintf(g_SpriteTokenBuffer, "~K%02d~", fKeyIndex);
+                return g_SpriteTokenBuffer;
+            }
+            // Fallback to text if icons not loaded
             char* fncText = CText_Get("FEC_FNC");
             if (fncText) {
                 CMessages_InsertNumberInString(fncText, keyCode - 1000, -1, -1, -1, -1, -1, g_NumberBuffer);
@@ -569,7 +589,7 @@ char* __cdecl ParseToken_Hooked(char* text, CRGBA& color, bool isBlip, char* tag
 // MINIMUM SIZE ENFORCEMENT
 // ============================================================================
 
-static const float MIN_SPRITE_HEIGHT = 15.0f;
+static const float MIN_SPRITE_HEIGHT = 21.0f;
 
 using CSprite2d_Draw_t = void(__thiscall*)(CSprite2d*, const CRect&, const CRGBA&);
 static CSprite2d_Draw_t CSprite2d_Draw_Original = reinterpret_cast<CSprite2d_Draw_t>(0x728350);

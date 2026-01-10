@@ -10,7 +10,7 @@ constexpr float ICON_SIZE = 20.0f;
 
 // ============================================================================
 // KEYBOARD KEY INDICES
-// Sprite indices 8-75 in the extended array (68 keys)
+// Sprite indices in the extended array (81 keys)
 // ============================================================================
 
 enum KeyboardKey {
@@ -51,8 +51,15 @@ enum KeyboardKey {
     
     // Numpad operators (65-67)
     KEY_NUMPLUS, KEY_NUMMUL, KEY_NUMMINUS,
-    
-    KEYBOARD_COUNT  // = 68
+
+    // Insert key (68)
+    KEY_INS,
+
+    // Function keys (69-80)
+    KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6,
+    KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12,
+
+    KEYBOARD_COUNT  // = 81
 };
 
 // ============================================================================
