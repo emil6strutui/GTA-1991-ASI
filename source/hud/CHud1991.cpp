@@ -19,10 +19,42 @@ CHudLayout1991 HudLayout;
 
 namespace CHud1991 {
 
+// ============================================================================
+// POSITION HELPERS - All return REFERENCE coordinates (640x448 space)
+// Callers must use Screen::StretchY() to convert to screen coordinates
+// ============================================================================
+
+// Get clock/money text height in reference coords
+static float GetTextHeight() {
+    // Font scale from game memory, multiply by base height, convert screen->reference
+    return Screen::GetClockFontScaleY() * 18.0f;
+}
+
+static float GetClockY() {
+    return HudLayout.hudStartY;
+}
+
+static float GetMoneyY() {
+    return GetClockY() + GetTextHeight() * HudLayout.textLineHeight + HudLayout.elementSpacing;
+}
+
+static float GetWeaponY() {
+    return HudLayout.hudStartY;
+}
+
+static float GetAmmoY() {
+    // Uses same weaponHeight that's patched into the game's weapon drawing
+    return GetWeaponY() + HudLayout.weaponHeight * HudLayout.ammoOffsetY;
+}
+
+static float GetBarsStartY() {
+    return GetMoneyY() + GetTextHeight() + HudLayout.elementSpacing;
+}
+
 // Returns Y position for bar at given slot (0 = first, 1 = second, etc.)
 static float GetBarSlotY(int slot) {
     float totalHeight = HudLayout.barHeight + HudLayout.barBorderWidth * 2;
-    return HudLayout.barStartY + slot * (totalHeight + HudLayout.barSpacing);
+    return GetBarsStartY() + slot * (totalHeight + HudLayout.barSpacing);
 }
 
 
@@ -73,19 +105,19 @@ static void DrawRoundedBarWithBorder(float x, float y, float w, float h, float p
 
 static void __cdecl DrawClock(float, float, char* text) {
     if (!HudLayout.showClock) return;
-    CFont::PrintString(Screen::FromRight(HudLayout.rightMargin), Screen::StretchY(HudLayout.clockY), text);
+    CFont::PrintString(Screen::FromRight(HudLayout.statsRightMargin), Screen::StretchY(GetClockY()), text);
 }
 
 static void __cdecl DrawMoney(float, float, char* text) {
     if (!HudLayout.showMoney) return;
-    CFont::PrintString(Screen::FromRight(HudLayout.rightMargin), Screen::StretchY(HudLayout.moneyY), text);
+    CFont::PrintString(Screen::FromRight(HudLayout.statsRightMargin), Screen::StretchY(GetMoneyY()), text);
 }
 
 static void __cdecl DrawWeaponIcon(CPed* ped, int, int, float alpha) {
     if (!HudLayout.showWeapon || !ped) return;
 
-    int x = static_cast<int>(Screen::FromRight(HudLayout.weaponX + HudLayout.weaponWidth));
-    int y = static_cast<int>(Screen::StretchY(HudLayout.weaponY));
+    int x = static_cast<int>(Screen::FromRight(HudLayout.weaponRightMargin));
+    int y = static_cast<int>(Screen::StretchY(GetWeaponY()));
 
     reinterpret_cast<void(__cdecl*)(CPed*, int, int, float)>(0x58D7D0)(ped, x, y, alpha);
 }
@@ -93,8 +125,8 @@ static void __cdecl DrawWeaponIcon(CPed* ped, int, int, float alpha) {
 static void __cdecl DrawAmmo(CPed* ped, int, int, float alpha) {
     if (!HudLayout.showAmmo || !ped) return;
 
-    int x = static_cast<int>(Screen::FromRight(HudLayout.weaponX + HudLayout.weaponWidth / 2.0f));
-    int y = static_cast<int>(Screen::StretchY(HudLayout.ammoY));
+    int x = static_cast<int>(Screen::FromRight(HudLayout.weaponRightMargin - HudLayout.weaponWidth / 2.0f));
+    int y = static_cast<int>(Screen::StretchY(GetAmmoY()));
 
     reinterpret_cast<void(__cdecl*)(CPed*, int, int, float)>(0x5893B0)(ped, x, y, alpha);
 }

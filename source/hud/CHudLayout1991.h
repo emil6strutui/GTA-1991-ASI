@@ -12,28 +12,25 @@
 #include <CRGBA.h>
 
 struct CHudLayout1991 {
-    // Right margin
-    float rightMargin = 65.0f;
+    // ---- Top-right HUD positioning ----
+    float weaponRightMargin = 55.0f;          // distance from right screen edge
+    float statsRightMargin = weaponRightMargin + 10.0f;
+    float hudStartY = 8.0f;             // Y position of first element
+    float elementSpacing = 1.0f;        // vertical gap between element groups
+    float textLineHeight = 0.85f;       // text height multiplier (compensates for font padding)
 
-    // Clock & Money
-    float clockY = 22.0f;
-    float moneyY = 40.0f;
-
-    // Weapon icon
-    float weaponX = 0.0f;
-    float weaponY = 22.0f;
+    // Weapon icon (also used by game patches - keep in sync)
     float weaponWidth = 58.0f;
     float weaponHeight = 58.0f;
-    float ammoY = 55.0f;
+    float ammoOffsetY = 0.6f;   // proportion of weaponHeight (0.0 = top, 1.0 = bottom)
 
     // Stat bars - dimensions
     float barWidth = 68.0f;
     float barHeight = 9.0f;
     float barBorderWidth = 1.5f;
-    float barStartY = 64.0f;    // first bar Y position
-    float barSpacing = 1.8f;    // gap between bars
-    int barSegments = 11;       // semicircle smoothness (higher = smoother)
-    int barCapSlices = 8;       // partial fill smoothness
+    float barSpacing = 1.8f;            // gap between bars
+    int barSegments = 11;               // semicircle smoothness (higher = smoother)
+    int barCapSlices = 8;               // partial fill smoothness
 
     // Stat bars - colors
     CRGBA healthFG = CRGBA(0, 104, 131, 255);
@@ -85,8 +82,18 @@ inline float FromRight(float x) {
 }
 
 inline float GetBarX(float barWidth) {
-    float barX = FromRight(HudLayout.rightMargin) - barWidth;
+    float barX = FromRight(HudLayout.statsRightMargin) - barWidth;
     return (barX < 0.0f) ? 0.0f : barX;
+}
+
+// Font scale multipliers (read from game memory, respects widescreen fixes)
+inline float GetClockFontScaleY() {
+    return *reinterpret_cast<float*>(0x858F14);  // flt_858F14
+}
+
+// Text height in reference coords: scaleY * 18 (CFont::GetHeight formula)
+inline float GetTextHeight(float scaleY) {
+    return scaleY * 17.0f;
 }
 
 } // namespace Screen
