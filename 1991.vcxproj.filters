@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="source">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\hud">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\stories-sprinting">
+      <UniqueIdentifier>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\Main.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ButtonIcons.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\hud\CHud1991.cpp">
+      <Filter>source\hud</Filter>
+    </ClCompile>
+    <ClCompile Include="source\stories-sprinting\CStoriesSprinting.cpp">
+      <Filter>source\stories-sprinting</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\hud\CHud1991.h">
+      <Filter>source\hud</Filter>
+    </ClInclude>
+    <ClInclude Include="source\hud\CHudLayout1991.h">
+      <Filter>source\hud</Filter>
+    </ClInclude>
+    <ClInclude Include="source\hud\CDrawing1991.h">
+      <Filter>source\hud</Filter>
+    </ClInclude>
+    <ClInclude Include="source\stories-sprinting\CStoriesSprinting.h">
+      <Filter>source\stories-sprinting</Filter>
+    </ClInclude>
+    <ClInclude Include="source\stories-sprinting\CStoriesSprintingConfig.h">
+      <Filter>source\stories-sprinting</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

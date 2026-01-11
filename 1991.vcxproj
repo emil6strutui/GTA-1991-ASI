@@ -62,7 +62,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTASA;GTAGAME_NAME="San Andreas";GTAGAME_ABBR="SA";GTAGAME_ABBRLOW="sa";GTAGAME_PROTAGONISTNAME="CJ";GTAGAME_CITYNAME="San Andreas";PLUGIN_SGV_10US;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)source;$(ProjectDir)source\hud;$(ProjectDir)source\stories-sprinting;$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -89,7 +89,7 @@
       <Command>
 if defined GTA_SA_DIR ( 
 
-taskkill /IM gta_sa.exe /F /FI "STATUS eq RUNNING" 
+taskkill /IM gta_sa.exe /F 2&gt;nul 
 
 xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts" 
 
@@ -101,7 +101,7 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <PreprocessorDefinitions>DEBUG;_CRT_NON_CONFORMING_SWPRINTFS;TARGET_NAME=R"($(TargetName))";GTASA;GTAGAME_NAME="San Andreas";GTAGAME_ABBR="SA";GTAGAME_ABBRLOW="sa";GTAGAME_PROTAGONISTNAME="CJ";GTAGAME_CITYNAME="San Andreas";PLUGIN_SGV_10US;RW;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)source;$(ProjectDir)source\hud;$(ProjectDir)source\stories-sprinting;$(PLUGIN_SDK_DIR)\Plugin_SA;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa;$(PLUGIN_SDK_DIR)\Plugin_SA\game_sa\rw;$(PLUGIN_SDK_DIR)\shared;$(PLUGIN_SDK_DIR)\shared\game;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>
@@ -122,7 +122,7 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
       <Command>
 if defined GTA_SA_DIR ( 
 
-taskkill /IM gta_sa.exe /F /FI "STATUS eq RUNNING" 
+taskkill /IM gta_sa.exe /F 2&gt;nul 
 
 xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts" 
 
@@ -130,11 +130,20 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="source\AnimPatches.cpp" />
     <ClCompile Include="source\ButtonIcons.cpp" />
-    <ClCompile Include="source\HudElements.cpp" />
     <ClCompile Include="source\Main.cpp" />
+    <ClCompile Include="source\hud\CHud1991.cpp" />
     <ClCompile Include="source\Markers.cpp" />
+    <ClCompile Include="source\stories-sprinting\CStoriesSprinting.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\GInputAPI.h" />
+    <ClInclude Include="source\hud\CHud1991.h" />
+    <ClInclude Include="source\hud\CHudLayout1991.h" />
+    <ClInclude Include="source\hud\CDrawing1991.h" />
+    <ClInclude Include="source\Markers.h" />
+    <ClInclude Include="source\stories-sprinting\CStoriesSprinting.h" />
+    <ClInclude Include="source\stories-sprinting\CStoriesSprintingConfig.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
