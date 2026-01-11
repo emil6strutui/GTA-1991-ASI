@@ -13,9 +13,9 @@
 
 struct CHudLayout1991 {
     // ---- Top-right HUD positioning ----
-    float weaponRightMargin = 55.0f;          // distance from right screen edge
+    float weaponRightMargin = 74.0f;          // distance from right screen edge
     float statsRightMargin = weaponRightMargin + 10.0f;
-    float hudStartY = 8.0f;             // Y position of first element
+    float hudStartY = 24.0f;             // Y position of first element
     float elementSpacing = 1.0f;        // vertical gap between element groups
     float textLineHeight = 0.85f;       // text height multiplier (compensates for font padding)
 
@@ -26,8 +26,8 @@ struct CHudLayout1991 {
 
     // Stat bars - dimensions
     float barWidth = 68.0f;
-    float barHeight = 9.0f;
-    float barBorderWidth = 1.5f;
+    float barHeight = 7.0f;
+    float barBorderWidth = 2.0f;
     float barSpacing = 1.8f;            // gap between bars
     int barSegments = 11;               // semicircle smoothness (higher = smoother)
     int barCapSlices = 8;               // partial fill smoothness
