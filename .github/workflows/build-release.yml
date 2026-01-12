@@ -34,7 +34,7 @@ jobs:
         shell: cmd
         run: |
           set PLUGIN_SDK_DIR=%GITHUB_WORKSPACE%\third-party\plugin-sdk
-          msbuild 1991.sln /property:Configuration=Release /property:Platform=x86 /m
+          msbuild 1991.sln /property:Configuration=Release /property:Platform=GTA-SA /m
 
       - name: Gather output files
         shell: cmd
