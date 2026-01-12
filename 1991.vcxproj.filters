@@ -10,6 +10,9 @@
     <Filter Include="source\stories-sprinting">
       <UniqueIdentifier>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</UniqueIdentifier>
     </Filter>
+    <Filter Include="source\keybindings">
+      <UniqueIdentifier>{B2C3D4E5-F6A7-8901-BCDE-F12345678901}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Main.cpp">
@@ -23,6 +26,9 @@
     </ClCompile>
     <ClCompile Include="source\stories-sprinting\CStoriesSprinting.cpp">
       <Filter>source\stories-sprinting</Filter>
+    </ClCompile>
+    <ClCompile Include="source\keybindings\CKeybindings.cpp">
+      <Filter>source\keybindings</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -40,6 +46,12 @@
     </ClInclude>
     <ClInclude Include="source\stories-sprinting\CStoriesSprintingConfig.h">
       <Filter>source\stories-sprinting</Filter>
+    </ClInclude>
+    <ClInclude Include="source\keybindings\CKeybindings.h">
+      <Filter>source\keybindings</Filter>
+    </ClInclude>
+    <ClInclude Include="source\keybindings\CKeybindingsConfig.h">
+      <Filter>source\keybindings</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

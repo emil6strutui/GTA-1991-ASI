@@ -314,7 +314,7 @@ void InstallHooks() {
     
     // Clear custom data before game re-initialization (new game/load game)
     // reInitGameEvent fires after CGame::ReInitGameObjectVariables which clears ENEX pool
-    Events::reInitGameEvent.before += ClearEnexCustomData;
+    Events::shutdownRwEvent.before += ClearEnexCustomData;
 }
 
-} // namespace Markers
+}
