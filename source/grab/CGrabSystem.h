@@ -41,8 +41,11 @@ struct CGrabConfig {
     int grabDamageUppercut = 15;        // Damage per uppercut
     int grabDamageThrow = 10;           // Damage from throw
     int grabDamageKnockout = 30;        // Knockout damage
-    float escapeChanceBase = 0.02f;     // Base chance per frame to escape
-    unsigned int maxGrabDurationMs = 10000; // Max grab duration (ms)
+    
+    // Escape chance system - increases over time
+    float escapeChanceStart = 0.001f;   // Starting chance per frame (0.1%)
+    float escapeChanceEnd = 0.05f;      // Max chance per frame at ramp end (5%)
+    unsigned int escapeRampUpMs = 8000; // Time to reach max escape chance (8 sec)
 };
 
 extern CGrabConfig GrabConfig;

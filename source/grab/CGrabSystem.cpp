@@ -18,6 +18,7 @@
 #include <ePedState.h>
 #include <common.h>
 #include <cstdio>
+#include <cstdlib>
 
 // ============================================================================
 // DEBUG LOGGING
@@ -96,19 +97,44 @@ static CCrime_ReportCrime_t CCrime_ReportCrime = reinterpret_cast<CCrime_ReportC
 
 // CAEPedAudioEntity::AddAudioEvent - plays ped audio events (punches, etc)
 // Address: 0x4E2BB0
-// Audio entity offset in CPed: 0x138
-typedef void(__thiscall* AddAudioEvent_t)(void* audioEntity, int event, float volume, float speed, 
+// Note: CAEPedAudioEntity exists in plugin-sdk but AddAudioEvent method is not declared
+typedef void(__thiscall* AddAudioEvent_t)(CAEPedAudioEntity* audioEntity, int event, float volume, float speed, 
                                           CPhysical* physical, int surfaceId, int a7, unsigned int maxVol);
 static AddAudioEvent_t AddAudioEvent = reinterpret_cast<AddAudioEvent_t>(0x4E2BB0);
 
-// CPed::Say - makes ped speak/grunt
-// Address: 0x5EFFE0
-typedef short(__thiscall* CPed_Say_t)(CPed* ped, short speechContext, unsigned int delay, 
-                                       float probability, bool overrideSilence, bool forceAudible, bool isFrontEnd);
-static CPed_Say_t CPed_Say = reinterpret_cast<CPed_Say_t>(0x5EFFE0);
+// Note: CPed::Say is available in plugin-sdk, use ped->Say() directly
+// Note: CPed::m_pedAudio is available in plugin-sdk, use &ped->m_pedAudio directly
 
-// Offset of m_pedAudio in CPed (after CPhysical at 0x138)
-constexpr uintptr_t PED_AUDIO_OFFSET = 0x138;
+// ============================================================================
+// EVENT SYSTEM - For making peds react after release
+// ============================================================================
+
+// CEventAcquaintancePedHate - makes ped hate and react to another ped
+// Constructor at 0x420E70, size 0x18 (24 bytes)
+// When added to event group, ped will fight back or flee based on personality
+struct CEventAcquaintancePedHate {
+    void* vtable;           // 0x00 - Virtual table pointer
+    int refCount;           // 0x04 - Reference count
+    float timeActive;       // 0x08
+    bool responseTaskSet;   // 0x0C
+    char pad[3];            // 0x0D
+    int taskType;           // 0x10 - Task to perform (TASK_NONE = let AI decide)
+    CPed* targetPed;        // 0x14 - Ped to hate
+};
+static_assert(sizeof(CEventAcquaintancePedHate) == 0x18, "CEventAcquaintancePedHate size mismatch");
+
+// Constructor: CEventAcquaintancePedHate::CEventAcquaintancePedHate(CPed* ped)
+typedef CEventAcquaintancePedHate* (__thiscall* EventAcquaintancePedHate_Ctor_t)(CEventAcquaintancePedHate* self, CPed* ped);
+static EventAcquaintancePedHate_Ctor_t EventAcquaintancePedHate_Ctor = reinterpret_cast<EventAcquaintancePedHate_Ctor_t>(0x420E70);
+
+// CEventGroup::Add - adds event to ped's event group
+// Address: 0x4AB420
+// Note: CEventGroup exists in plugin-sdk but Add method is not declared
+// Access via ped->m_pIntelligence->m_eventGroup (available in plugin-sdk)
+typedef void* (__thiscall* EventGroup_Add_t)(CEventGroup* eventGroup, void* event, bool valid);
+static EventGroup_Add_t EventGroup_Add = reinterpret_cast<EventGroup_Add_t>(0x4AB420);
+
+// NOTE: RpAnimBlendClumpRemoveAllAssociations is already declared in plugin-sdk common.h
 
 // ============================================================================
 // APPROACH BASED ON GTA-REVERSED ANALYSIS:
@@ -301,10 +327,10 @@ static bool IsPedValidForAudio(CPed* ped) {
     return true;
 }
 
-// Get the audio entity from a ped (at offset 0x138)
-static void* GetPedAudioEntity(CPed* ped) {
+// Get the audio entity from a ped (use plugin-sdk m_pedAudio member)
+static CAEPedAudioEntity* GetPedAudioEntity(CPed* ped) {
     if (!ped) return nullptr;
-    return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ped) + PED_AUDIO_OFFSET);
+    return &ped->m_pedAudio;
 }
 
 // Play a hit/punch sound effect
@@ -315,10 +341,9 @@ static void PlayHitSound(CPed* attacker, CPed* victim, eAudioEvents soundEvent) 
         return;
     }
     
-    void* audioEntity = GetPedAudioEntity(attacker);
+    CAEPedAudioEntity* audioEntity = GetPedAudioEntity(attacker);
     if (audioEntity) {
         // Pass attacker as the physical - AddAudioEvent crashes with nullptr!
-        // The attacker is already validated, so this is safe
         // AddAudioEvent(audioEntity, event, volume, speed, physical, surface, a7, maxVol)
         AddAudioEvent(audioEntity, soundEvent, 0.0f, 1.0f, attacker, 0, 0, 0);
         DebugLog("PlayHitSound: event=%d attacker=%p", soundEvent, attacker);
@@ -333,8 +358,9 @@ static void MakePedSay(CPed* ped, eGlobalSpeechContext context) {
         return;
     }
     
-    // Say(ped, context, delay, probability, overrideSilence, forceAudible, isFrontEnd)
-    CPed_Say(ped, context, 0, 1.0f, false, false, false);
+    // Use plugin-sdk CPed::Say method directly
+    // Say(speechContext, delay, probability, overrideSilence, forceAudible, isFrontEnd)
+    ped->Say(context, 0, 1.0f, 0, 0, 0);
     DebugLog("MakePedSay: ped=%p context=%d", ped, context);
 }
 
@@ -388,6 +414,36 @@ static bool LoadGrabAnimations() {
     g_pFightAnimBlock = CAnimManager::GetAnimationBlock("fight_a");
 
     return g_pFightAnimBlock != nullptr && g_pFightAnimBlock->bLoaded;
+}
+
+// ============================================================================
+// ANIMATION CLEANUP (from gta-reversed CTaskSimpleAnim::~CTaskSimpleAnim)
+// ============================================================================
+
+// Animation flag for auto-removal (from gta-reversed AnimBlendAssociation.h)
+// When blend amount reaches 0, animation is automatically deleted
+constexpr int ANIM_FLAG_BLEND_AUTO_REMOVE = 0x4;
+
+// Default animation callback - does nothing, used to detach our callbacks
+static void DefaultAnimCB(CAnimBlendAssociation* anim, void* data) {
+    // Empty - just a placeholder to replace our callbacks
+}
+
+// Properly clean up an animation before playing a new one
+// This prevents crashes from stale callbacks
+static void CleanupAnimation(CAnimBlendAssociation*& anim) {
+    if (!anim) return;
+    
+    // Only detach our callback - don't mess with flags or blend delta!
+    // Setting ANIM_FLAG_BLEND_AUTO_REMOVE causes use-after-free crashes
+    // when RpAnimBlendClumpUpdateAnimations iterates and frees during update.
+    // Just detach callback and let BlendAnimation naturally replace the old anim.
+    anim->SetFinishCallback(DefaultAnimCB, nullptr);
+    
+    DebugLog("CleanupAnimation: detached callback from anim=%p", anim);
+    
+    // Clear our reference (animation still exists, just not tracked by us)
+    anim = nullptr;
 }
 
 // ============================================================================
@@ -567,9 +623,9 @@ static void SetupVictimForGrab(CPed* victim) {
 
 // Release victim from grab state
 static void ReleaseVictimFromGrab(CPed* victim) {
-    // Always clear our animation reference first, regardless of victim state
-    // The anim might already be freed by the game, so just null our pointer
-    g_pVictimAnim = nullptr;
+    // CRITICAL: Clean up our animation first to detach callbacks
+    // This prevents crashes from stale callback pointers
+    CleanupAnimation(g_pVictimAnim);
     
     if (!victim) return;
     
@@ -579,19 +635,48 @@ static void ReleaseVictimFromGrab(CPed* victim) {
         return;
     }
 
+    // DON'T use RpAnimBlendClumpRemoveAllAssociations - it crashes in DoFootLanded!
+    // The ped needs at least a base animation playing at all times.
+    // CleanupAnimation already sets blend delta to fade out our grab anims.
+    // The ped's task system will blend in proper idle animation.
+    DebugLog("ReleaseVictimFromGrab: letting grab anims blend out naturally");
+
+    // Clear the animation moving shift so victim stops sliding
+    victim->m_vecAnimMovingShiftLocal.x = 0.0f;
+    victim->m_vecAnimMovingShiftLocal.y = 0.0f;
+
     // Re-enable collision
     victim->bUsesCollision = true;
 
-    // Clear flags
+    // Clear flags that were set during grab
     victim->bStayInSamePlace = false;
     victim->bKindaStayInSamePlace = false;
     victim->bDontFight = false;
     victim->bIsBeingArrested = false;
 
-    // Clear our task (only if intelligence is valid)
+    // Clear our task and trigger reaction (only if intelligence is valid)
     if (victim->m_pIntelligence) {
         CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
         taskMgr->SetTask(nullptr, TASK_PRIMARY_PRIMARY, false);
+        
+        // Trigger a "hate player" event so the ped reacts naturally
+        // This makes them either fight back or flee based on their personality
+        // Like what happens after you punch someone in a fist fight
+        CPlayerPed* player = FindPlayerPed(0);
+        if (player && victim->m_ePedState != PEDSTATE_DEAD && victim->m_ePedState != PEDSTATE_DIE) {
+            // Create event on stack (0x18 bytes)
+            CEventAcquaintancePedHate hateEvent;
+            memset(&hateEvent, 0, sizeof(hateEvent));
+            
+            // Call the constructor to properly initialize the event
+            EventAcquaintancePedHate_Ctor(&hateEvent, player);
+            
+            // Add to victim's event group - this triggers fight/flee AI
+            // Use plugin-sdk m_eventGroup member directly
+            EventGroup_Add(&victim->m_pIntelligence->m_eventGroup, &hateEvent, false);
+            
+            DebugLog("ReleaseVictimFromGrab: added hate event, victim should react");
+        }
     }
 
     // Restore to idle state (only if not dead)
@@ -626,10 +711,21 @@ static void SetupPlayerForGrab(CPlayerPed* player) {
 }
 
 static void ReleasePlayerFromGrab(CPlayerPed* player) {
-    // Always clear our animation reference first
-    g_pPlayerAnim = nullptr;
+    // CRITICAL: Clean up our animation first to detach callbacks
+    CleanupAnimation(g_pPlayerAnim);
     
     if (!player) return;
+    
+    // Check if player still has valid RwClump
+    if (!player->m_pRwClump) {
+        DebugLog("ReleasePlayerFromGrab: player RwClump invalid");
+        return;
+    }
+
+    // DON'T use RpAnimBlendClumpRemoveAllAssociations - it crashes in DoFootLanded!
+    // CleanupAnimation already sets blend delta to fade out our grab anims.
+    // The player's task system will blend in proper idle animation.
+    DebugLog("ReleasePlayerFromGrab: letting grab anims blend out naturally");
 
     // Clear the grab task we set
     if (player->m_pIntelligence) {
@@ -785,6 +881,11 @@ void StartHoldAnimation() {
     CPlayerPed* player = GetPlayer();
     if (!player || !g_pGrabbedPed) return;
 
+    // CRITICAL: Clean up old animations before playing new ones
+    // This prevents crashes from stale callbacks
+    CleanupAnimation(g_pPlayerAnim);
+    CleanupAnimation(g_pVictimAnim);
+
     // Reset flags for new animations
     g_bPlayerAnimFinished = false;
     g_bVictimAnimFinished = false;
@@ -824,6 +925,10 @@ void StartActionAnimation(eGrabAction action) {
         default: break;
     }
     DebugLog("StartActionAnimation: action=%s (%d)", actionName, action);
+
+    // CRITICAL: Clean up old animations before playing new ones
+    CleanupAnimation(g_pPlayerAnim);
+    CleanupAnimation(g_pVictimAnim);
 
     g_currentAction = action;
     g_grabState = GRAB_STATE_PERFORMING;
@@ -880,6 +985,10 @@ void StartActionAnimation(eGrabAction action) {
 
 void StartReleaseAnimation() {
     g_grabState = GRAB_STATE_RELEASING;
+
+    // CRITICAL: Clean up old animations before playing new ones
+    CleanupAnimation(g_pPlayerAnim);
+    CleanupAnimation(g_pVictimAnim);
 
     CPlayerPed* player = GetPlayer();
     if (player && g_pGrabbedPed) {
@@ -1033,9 +1142,32 @@ bool CheckVictimEscape() {
     CPlayerPed* player = GetPlayer();
     if (!player) return true;
 
+    // Check if too far away
     float distance = GetDistanceBetweenPeds(player, g_pGrabbedPed);
     if (distance > GrabConfig.escapeDistance) return true;
 
+    // Calculate time-based escape chance
+    // Escape chance increases linearly from escapeChanceStart to escapeChanceEnd
+    // over the course of escapeRampUpMs milliseconds
+    unsigned int timeHeld = CTimer::m_snTimeInMilliseconds - g_grabStartTime;
+    
+    // Calculate interpolation factor (0.0 to 1.0, clamped)
+    float t = static_cast<float>(timeHeld) / static_cast<float>(GrabConfig.escapeRampUpMs);
+    if (t > 1.0f) t = 1.0f;
+    
+    // Lerp between start and end escape chance
+    float escapeChance = GrabConfig.escapeChanceStart + 
+                         (GrabConfig.escapeChanceEnd - GrabConfig.escapeChanceStart) * t;
+    
+    // Roll random chance (0.0 to 1.0)
+    float roll = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+    
+    if (roll < escapeChance) {
+        DebugLog("CheckVictimEscape: victim escaped! time=%ums, chance=%.3f, roll=%.3f",
+                 timeHeld, escapeChance, roll);
+        return true;
+    }
+    
     return false;
 }
 
@@ -1082,13 +1214,8 @@ void Process() {
         return;
     }
 
-    // Check grab timeout
-    if (g_grabState != GRAB_STATE_NONE && g_grabStartTime > 0) {
-        if (CTimer::m_snTimeInMilliseconds - g_grabStartTime > GrabConfig.maxGrabDurationMs) {
-            ForceReleaseGrab();
-            return;
-        }
-    }
+    // NOTE: Hard timeout removed - escape chance system handles gradual release
+    // Victim escape chance increases over time in CheckVictimEscape()
 
     switch (g_grabState) {
         case GRAB_STATE_NONE:
