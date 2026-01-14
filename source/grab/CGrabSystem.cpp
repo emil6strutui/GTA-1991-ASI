@@ -603,6 +603,10 @@ static void SetupVictimForGrab(CPed* victim) {
     taskMgr->SetTask(nullptr, TASK_SECONDARY_PARTIAL_ANIM, false);
     victim->m_vecMoveSpeed.Set(0.0f, 0.0f, 0.0f);
 
+    // CRITICAL: Stop all non-partial (full-body) animations like stealth kill does
+    // This ensures our grabbed animation can take over cleanly
+    victim->StopNonPartialAnims();
+    
     // Set victim state (like arrest does)
     victim->SetPedState(PEDSTATE_ARRESTED);
 
@@ -627,6 +631,8 @@ static void SetupVictimForGrab(CPed* victim) {
 
     // Set as primary task - this prevents victim's AI from taking over
     taskMgr->SetTask(standTask, TASK_PRIMARY_PRIMARY, false);
+    
+    DebugLog("SetupVictimForGrab: stopped anims, cleared tasks, set state");
 }
 
 // Release victim from grab state
@@ -978,16 +984,12 @@ void StartAttachPhase() {
         return;
     }
 
-    // Start victim's grabbed animation with blend based on distance
-    // Farther = slower blend for smoother transition
-    float blendDelta = 8.0f - (dist * 2.0f);  // Slower blend if far
-    if (blendDelta < 2.0f) blendDelta = 2.0f;
-    
+    // Start victim's grabbed animation (StopNonPartialAnims was already called)
     g_pVictimAnim = PlayAnimationWithCallback(
         g_pGrabbedPed,
         GrabAnims::GRABBED_INIT,
         false,
-        blendDelta,
+        8.0f,   // Same blend delta as stealth kill
         VictimAnimFinishedCB,
         nullptr
     );
@@ -1013,7 +1015,7 @@ void StartHoldAnimation() {
         player,
         GrabAnims::GRAB_IDLE,
         true,   // Looped
-        4.0f,
+        8.0f,
         PlayerAnimFinishedCB,
         nullptr
     );
@@ -1022,7 +1024,7 @@ void StartHoldAnimation() {
         g_pGrabbedPed,
         GrabAnims::GRABBED_IDLE,
         true,
-        4.0f,
+        8.0f,
         VictimAnimFinishedCB,
         nullptr
     );
