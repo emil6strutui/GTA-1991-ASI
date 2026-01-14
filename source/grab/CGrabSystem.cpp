@@ -168,6 +168,7 @@ namespace {
     eGrabState g_grabState = GRAB_STATE_NONE;
     CPed* g_pGrabbedPed = nullptr;
     unsigned int g_grabStartTime = 0;
+    unsigned int g_windupStartTime = 0;     // When windup phase started
     CAnimBlendAssociation* g_pPlayerAnim = nullptr;
     CAnimBlendAssociation* g_pVictimAnim = nullptr;
     CAnimBlock* g_pFightAnimBlock = nullptr;
@@ -177,16 +178,23 @@ namespace {
     // Track when animations finish via callbacks
     bool g_bPlayerAnimFinished = false;
     bool g_bVictimAnimFinished = false;
+    
+    // Target position for victim during attach phase
+    CVector g_victimTargetPos;
+    float g_victimTargetHeading = 0.0f;
 }
 
 // Forward declarations
 namespace Internal {
-    void StartGrabAnimation();
+    void StartWindupPhase();
+    void StartAttachPhase();
     void StartHoldAnimation();
     void StartActionAnimation(eGrabAction action);
     void StartReleaseAnimation();
     CPed* FindGrabTarget(CPlayerPed* player);
     void UpdateGrabbedPedPosition();
+    void LerpVictimToPosition(float deltaTime);
+    float GetDistanceToTargetPosition();
     bool CheckVictimEscape();
     void ApplyGrabDamage(eGrabAction action);
 }
@@ -694,20 +702,22 @@ static void SetupPlayerForGrab(CPlayerPed* player) {
 
     CTaskManager* taskMgr = &player->m_pIntelligence->m_TaskMgr;
 
+    // Stop physics movement (but don't clear tasks - camera depends on them!)
+    player->m_vecMoveSpeed.Set(0.0f, 0.0f, 0.0f);
+    player->m_vecTurnSpeed.Set(0.0f, 0.0f, 0.0f);
+    
     // Set attack state
     player->SetPedState(PEDSTATE_ATTACK);
 
-    // Use custom grab task that:
-    // - Occupies TASK_PRIMARY_PRIMARY (prevents PlayerOnFoot from fighting)
-    // - Does NOT blend idle animation (unlike CTaskSimpleStandStill)
-    // - Allows our grab animation to play uninterrupted
-    // - Camera rotation still works (camera is processed separately)
+    // Use custom grab task - only set PRIMARY_PRIMARY
+    // Don't clear other tasks as camera system depends on them
     CTaskSimpleGrab* grabTask = new CTaskSimpleGrab();
     taskMgr->SetTask(grabTask, TASK_PRIMARY_PRIMARY, false);
     
-    // Clear secondary attack tasks to prevent combo punches
+    // Clear secondary attack to prevent combo punches
     taskMgr->SetTask(nullptr, TASK_SECONDARY_ATTACK, false);
-    taskMgr->SetTask(nullptr, TASK_SECONDARY_DUCK, false);
+    
+    DebugLog("SetupPlayerForGrab: set grab task, stopped physics movement");
 }
 
 static void ReleasePlayerFromGrab(CPlayerPed* player) {
@@ -793,9 +803,8 @@ CPed* FindGrabTarget(CPlayerPed* player) {
     return bestTarget;
 }
 
-// Position both peds correctly at the start of a grab (like stealth kill does)
-// This ensures animations line up properly
-void PositionPedsForGrab(CPlayerPed* player, CPed* victim) {
+// Calculate target position and heading for victim (where they should end up)
+void CalculateVictimTargetPosition(CPlayerPed* player, CPed* victim) {
     if (!player || !victim) return;
 
     CVector playerPos = player->GetPosition();
@@ -810,71 +819,180 @@ void PositionPedsForGrab(CPlayerPed* player, CPed* victim) {
     // Calculate heading that faces the victim (GTA heading: atan2(-x, y))
     float headingToVictim = atan2f(-toVictim.x, toVictim.y);
 
-    // Rotate player to face victim
-    player->m_fCurrentRotation = headingToVictim;
-    player->m_fAimingRotation = headingToVictim;
+    // Calculate target position: grabOffset distance in front of player
+    g_victimTargetPos.x = playerPos.x + (-sinf(headingToVictim)) * GrabConfig.grabOffset;
+    g_victimTargetPos.y = playerPos.y + cosf(headingToVictim) * GrabConfig.grabOffset;
+    g_victimTargetPos.z = victimPos.z;  // Keep same Z
 
-    // Rotate victim to face player (opposite direction)
-    float headingToPlayer = headingToVictim + 3.14159f;
+    // Calculate target heading: facing player (opposite direction)
+    g_victimTargetHeading = headingToVictim + 3.14159f;
     // Normalize to [-PI, PI]
-    while (headingToPlayer > 3.14159f) headingToPlayer -= 6.28318f;
-    while (headingToPlayer < -3.14159f) headingToPlayer += 6.28318f;
+    while (g_victimTargetHeading > 3.14159f) g_victimTargetHeading -= 6.28318f;
+    while (g_victimTargetHeading < -3.14159f) g_victimTargetHeading += 6.28318f;
 
-    victim->m_fCurrentRotation = headingToPlayer;
-    victim->m_fAimingRotation = headingToPlayer;
-
-    // Position victim at the correct distance in front of player
-    // Target position: grabOffset distance in front of player
-    float targetX = playerPos.x + (-sinf(headingToVictim)) * GrabConfig.grabOffset;
-    float targetY = playerPos.y + cosf(headingToVictim) * GrabConfig.grabOffset;
-
-    // Move victim to target position
-    CVector newVictimPos = victimPos;
-    newVictimPos.x = targetX;
-    newVictimPos.y = targetY;
-    // Keep same Z (height) - don't teleport them into ground/air
-    victim->SetPosn(newVictimPos);
-
-    DebugLog("PositionPedsForGrab: player heading=%.2f, victim heading=%.2f, offset=%.2f",
-             headingToVictim, headingToPlayer, GrabConfig.grabOffset);
+    DebugLog("CalculateVictimTargetPosition: target=(%.2f, %.2f) heading=%.2f",
+             g_victimTargetPos.x, g_victimTargetPos.y, g_victimTargetHeading);
 }
 
-void StartGrabAnimation() {
+// Get distance from victim's current position to target position
+float GetDistanceToTargetPosition() {
+    if (!g_pGrabbedPed) return 999.0f;
+    
+    CVector victimPos = g_pGrabbedPed->GetPosition();
+    float dx = g_victimTargetPos.x - victimPos.x;
+    float dy = g_victimTargetPos.y - victimPos.y;
+    return sqrtf(dx * dx + dy * dy);
+}
+
+// Smoothly move victim toward target position
+void LerpVictimToPosition(float deltaTime) {
+    if (!g_pGrabbedPed) return;
+    
+    CVector victimPos = g_pGrabbedPed->GetPosition();
+    
+    // Calculate direction to target
+    float dx = g_victimTargetPos.x - victimPos.x;
+    float dy = g_victimTargetPos.y - victimPos.y;
+    float dist = sqrtf(dx * dx + dy * dy);
+    
+    if (dist < 0.01f) {
+        // Close enough, snap to position
+        g_pGrabbedPed->SetPosn(g_victimTargetPos);
+        return;
+    }
+    
+    // Lerp speed scales with distance for smooth deceleration
+    float speed = GrabConfig.attachLerpSpeed * deltaTime;
+    if (speed > dist) speed = dist;  // Don't overshoot
+    
+    // Move toward target
+    float nx = dx / dist;  // Normalized direction
+    float ny = dy / dist;
+    
+    CVector newPos = victimPos;
+    newPos.x += nx * speed;
+    newPos.y += ny * speed;
+    g_pGrabbedPed->SetPosn(newPos);
+    
+    // Also lerp heading
+    float currentHeading = g_pGrabbedPed->m_fCurrentRotation;
+    float headingDiff = g_victimTargetHeading - currentHeading;
+    
+    // Normalize heading diff to [-PI, PI]
+    while (headingDiff > 3.14159f) headingDiff -= 6.28318f;
+    while (headingDiff < -3.14159f) headingDiff += 6.28318f;
+    
+    float headingSpeed = 8.0f * deltaTime;
+    if (fabsf(headingDiff) < headingSpeed) {
+        g_pGrabbedPed->m_fCurrentRotation = g_victimTargetHeading;
+    } else {
+        g_pGrabbedPed->m_fCurrentRotation += (headingDiff > 0 ? headingSpeed : -headingSpeed);
+    }
+    g_pGrabbedPed->m_fAimingRotation = g_pGrabbedPed->m_fCurrentRotation;
+}
+
+// Phase 1: Player starts grab wind-up animation, victim NOT attached yet
+void StartWindupPhase() {
     CPlayerPed* player = GetPlayer();
-    if (!player || !g_pGrabbedPed) return;
+    if (!player) return;
 
-    // Position both peds to face each other at correct distance
-    PositionPedsForGrab(player, g_pGrabbedPed);
+    DebugLog("StartWindupPhase: beginning grab wind-up (target=%p)", g_pGrabbedPed);
 
-    // Reset animation finished flags
+    // If we have a target, calculate where they should end up and face them
+    if (g_pGrabbedPed) {
+        CalculateVictimTargetPosition(player, g_pGrabbedPed);
+
+        // Rotate player to face victim immediately
+        CVector playerPos = player->GetPosition();
+        CVector victimPos = g_pGrabbedPed->GetPosition();
+        CVector toVictim;
+        toVictim.x = victimPos.x - playerPos.x;
+        toVictim.y = victimPos.y - playerPos.y;
+        float headingToVictim = atan2f(-toVictim.x, toVictim.y);
+        player->m_fCurrentRotation = headingToVictim;
+        player->m_fAimingRotation = headingToVictim;
+    }
+    // If no target, player keeps current facing (whiff in current direction)
+
+    // Setup player (stops movement, sets task)
+    SetupPlayerForGrab(player);
+
+    // Reset animation flags
     g_bPlayerAnimFinished = false;
     g_bVictimAnimFinished = false;
 
-    // Setup both peds (tasks and states)
-    SetupPlayerForGrab(player);
-    SetupVictimForGrab(g_pGrabbedPed);
-
-    // Play grab initiation animations with callbacks
-    // High blend delta (8.0) to quickly override any idle animations
+    // Start player grab animation with high blend delta to quickly override
+    // any other playing animations (like melee approach walk)
     g_pPlayerAnim = PlayAnimationWithCallback(
         player,
         GrabAnims::GRAB_INIT,
         false,  // Not looped
-        8.0f,   // Fast blend in
+        32.0f,  // Very fast blend to override other anims
         PlayerAnimFinishedCB,
         nullptr
     );
 
+    // Record when windup started
+    g_windupStartTime = CTimer::m_snTimeInMilliseconds;
+    g_grabState = GRAB_STATE_WINDUP;
+    
+    if (g_pGrabbedPed) {
+        DebugLog("StartWindupPhase: player anim started, victim will attach in %.2fs", GrabConfig.windupDuration);
+    } else {
+        DebugLog("StartWindupPhase: whiff animation started (no target)");
+    }
+}
+
+// Phase 2: Attach victim - start their animation and begin pulling them in
+void StartAttachPhase() {
+    CPlayerPed* player = GetPlayer();
+    if (!player || !g_pGrabbedPed) return;
+
+    DebugLog("StartAttachPhase: attaching victim");
+
+    // IMPORTANT: Recalculate victim target position based on where player is NOW
+    // Player may have moved during windup (e.g., from melee approach momentum)
+    CalculateVictimTargetPosition(player, g_pGrabbedPed);
+
+    // Check distance - if already close enough, we can skip to hold faster
+    float dist = GetDistanceToTargetPosition();
+    bool isClose = (dist < GrabConfig.instantAttachDist);
+    
+    DebugLog("StartAttachPhase: victim distance=%.2f, isClose=%d", dist, isClose);
+
+    // Setup victim (stops them, sets state)
+    SetupVictimForGrab(g_pGrabbedPed);
+
+    // Rotate victim to face player
+    g_pGrabbedPed->m_fCurrentRotation = g_victimTargetHeading;
+    g_pGrabbedPed->m_fAimingRotation = g_victimTargetHeading;
+
+    // Reset victim animation flag
+    g_bVictimAnimFinished = false;
+
+    if (isClose) {
+        // Victim is already close - snap to position and go to hold
+        g_pGrabbedPed->SetPosn(g_victimTargetPos);
+        DebugLog("StartAttachPhase: victim close, snapping to hold");
+        StartHoldAnimation();
+        return;
+    }
+
+    // Start victim's grabbed animation with blend based on distance
+    // Farther = slower blend for smoother transition
+    float blendDelta = 8.0f - (dist * 2.0f);  // Slower blend if far
+    if (blendDelta < 2.0f) blendDelta = 2.0f;
+    
     g_pVictimAnim = PlayAnimationWithCallback(
         g_pGrabbedPed,
         GrabAnims::GRABBED_INIT,
         false,
-        8.0f,
+        blendDelta,
         VictimAnimFinishedCB,
         nullptr
     );
 
-    g_grabState = GRAB_STATE_INITIATING;
+    g_grabState = GRAB_STATE_ATTACHING;
 }
 
 void StartHoldAnimation() {
@@ -1224,18 +1342,90 @@ void Process() {
             }
             break;
 
-        case GRAB_STATE_INITIATING:
-            if (g_pGrabbedPed) {
-                Internal::UpdateGrabbedPedPosition();
+        case GRAB_STATE_WINDUP:
+            {
+                // Player is doing wind-up animation, victim not attached yet
+                // Stop physics movement (animation handles the rest via high blend)
+                player->m_vecMoveSpeed.Set(0.0f, 0.0f, 0.0f);
+                
+                // Check if we have a target (not a whiff)
+                if (g_pGrabbedPed) {
+                    // Check if windup duration has passed
+                    unsigned int elapsed = CTimer::m_snTimeInMilliseconds - g_windupStartTime;
+                    unsigned int windupMs = static_cast<unsigned int>(GrabConfig.windupDuration * 1000.0f);
+                    
+                    if (elapsed >= windupMs) {
+                        // Time to attach victim
+                        DebugLog("WINDUP -> ATTACHING: windup complete (%ums)", elapsed);
+                        Internal::StartAttachPhase();
+                    }
+                } else {
+                    // No target (whiff) - wait for animation to finish
+                    if (g_bPlayerAnimFinished) {
+                        DebugLog("WINDUP -> NONE: whiff animation finished");
+                        ForceReleaseGrab();
+                    }
+                }
+                
+                // Allow cancellation
+                if (IsKeyJustPressed(GRAB_KEY)) {
+                    DebugLog("WINDUP -> NONE: cancelled by player");
+                    ForceReleaseGrab();
+                }
             }
-            // Check if BOTH animations finished (using callbacks)
-            if (g_bPlayerAnimFinished && g_bVictimAnimFinished) {
-                DebugLog("INITIATING -> HOLDING: both anims finished");
-                Internal::StartHoldAnimation();
+            break;
+
+        case GRAB_STATE_ATTACHING:
+            {
+                // Check if victim died - release immediately
+                if (!g_pGrabbedPed || !IsPedAlive(g_pGrabbedPed)) {
+                    DebugLog("ATTACHING -> NONE: victim died");
+                    ForceReleaseGrab();
+                    break;
+                }
+                
+                // Lerping victim to target position while their animation plays
+                float deltaTime = CTimer::ms_fTimeStep / 50.0f;  // Convert to seconds
+                Internal::LerpVictimToPosition(deltaTime);
+                
+                // Stop physics movement
+                player->m_vecMoveSpeed.Set(0.0f, 0.0f, 0.0f);
+                
+                // Check if victim reached target and animations done
+                float dist = Internal::GetDistanceToTargetPosition();
+                bool positionReached = (dist < 0.05f);
+                
+                // Wait for both position and player animation to be ready
+                if (positionReached && g_bPlayerAnimFinished) {
+                    DebugLog("ATTACHING -> HOLDING: victim in position, player anim done");
+                    Internal::StartHoldAnimation();
+                }
+                // Also check if victim animation finished (as backup transition)
+                else if (g_bPlayerAnimFinished && g_bVictimAnimFinished) {
+                    DebugLog("ATTACHING -> HOLDING: both anims finished");
+                    // Snap victim to position if not there yet
+                    if (!positionReached && g_pGrabbedPed) {
+                        g_pGrabbedPed->SetPosn(g_victimTargetPos);
+                    }
+                    Internal::StartHoldAnimation();
+                }
+                
+                // Allow cancellation
+                if (IsKeyJustPressed(GRAB_KEY)) {
+                    DebugLog("ATTACHING -> NONE: cancelled by player");
+                    ForceReleaseGrab();
+                }
             }
             break;
 
         case GRAB_STATE_HOLDING:
+            // Check if victim died - release immediately
+            if (!g_pGrabbedPed || !IsPedAlive(g_pGrabbedPed)) {
+                DebugLog("HOLDING -> NONE: victim died");
+                ForceReleaseGrab();
+                break;
+            }
+            
             Internal::UpdateGrabbedPedPosition();
 
             if (Internal::CheckVictimEscape()) {
@@ -1270,18 +1460,26 @@ void Process() {
             break;
 
         case GRAB_STATE_PERFORMING:
-            if (g_pGrabbedPed) {
-                Internal::UpdateGrabbedPedPosition();
-            }
-            // Check if action animation finished
-            if (g_bPlayerAnimFinished && g_bVictimAnimFinished) {
-                DebugLog("PERFORMING -> finished: action=%d, playerAnimDone=%d victimAnimDone=%d",
-                    g_currentAction, g_bPlayerAnimFinished, g_bVictimAnimFinished);
-                if (g_currentAction == GRAB_ACTION_THROW || g_currentAction == GRAB_ACTION_KNOCKOUT) {
-                    ForceReleaseGrab();
-                } else {
-                    DebugLog("PERFORMING -> HOLDING: returning to hold");
-                    Internal::StartHoldAnimation();
+            {
+                // Only update victim position if they're still alive
+                if (g_pGrabbedPed && IsPedAlive(g_pGrabbedPed)) {
+                    Internal::UpdateGrabbedPedPosition();
+                }
+                
+                // Check if player animation finished (don't wait for victim if they died)
+                bool victimDead = !g_pGrabbedPed || !IsPedAlive(g_pGrabbedPed);
+                bool canFinish = g_bPlayerAnimFinished && (g_bVictimAnimFinished || victimDead);
+                
+                if (canFinish) {
+                    DebugLog("PERFORMING -> finished: action=%d, victimDead=%d",
+                        g_currentAction, victimDead);
+                    // Always release after action if victim died, or if throw/knockout
+                    if (victimDead || g_currentAction == GRAB_ACTION_THROW || g_currentAction == GRAB_ACTION_KNOCKOUT) {
+                        ForceReleaseGrab();
+                    } else {
+                        DebugLog("PERFORMING -> HOLDING: returning to hold");
+                        Internal::StartHoldAnimation();
+                    }
                 }
             }
             break;
@@ -1322,19 +1520,22 @@ bool TryInitiateGrab() {
         }
     }
 
+    // Try to find a target
     CPed* target = Internal::FindGrabTarget(player);
-    if (!target) {
-        DebugLog("TryInitiateGrab: No target found");
-        return false;
+    
+    if (target) {
+        DebugLog("TryInitiateGrab: Found target=%p, initiating grab", target);
+        g_pGrabbedPed = target;
+    } else {
+        // No target - still play the grab animation (whiff)
+        DebugLog("TryInitiateGrab: No target found, playing whiff animation");
+        g_pGrabbedPed = nullptr;
     }
-
-    DebugLog("TryInitiateGrab: Found target=%p, initiating grab", target);
-    g_pGrabbedPed = target;
+    
     g_grabStartTime = CTimer::m_snTimeInMilliseconds;
+    Internal::StartWindupPhase();
 
-    Internal::StartGrabAnimation();
-
-    return true;
+    return true;  // Always return true - animation plays regardless
 }
 
 void PerformGrabAction(eGrabAction action) {
@@ -1361,6 +1562,7 @@ void ForceReleaseGrab() {
     g_grabState = GRAB_STATE_NONE;
     g_pGrabbedPed = nullptr;
     g_grabStartTime = 0;
+    g_windupStartTime = 0;
     g_pPlayerAnim = nullptr;
     g_pVictimAnim = nullptr;
     g_currentAction = GRAB_ACTION_NONE;

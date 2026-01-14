@@ -14,8 +14,9 @@ class CAnimBlendAssociation;
 // Grab states
 enum eGrabState : unsigned char {
     GRAB_STATE_NONE = 0,
-    GRAB_STATE_INITIATING,      // Playing grab initiation anim
-    GRAB_STATE_HOLDING,         // Holding victim in grab
+    GRAB_STATE_WINDUP,          // Player wind-up animation (victim not attached yet)
+    GRAB_STATE_ATTACHING,       // Pulling victim in, starting their animation
+    GRAB_STATE_HOLDING,         // Holding victim in grab loop
     GRAB_STATE_PERFORMING,      // Performing a grab action (jab, throw, etc.)
     GRAB_STATE_RELEASING,       // Releasing victim
     GRAB_STATE_VICTIM_ESCAPED   // Victim broke free
@@ -43,9 +44,15 @@ struct CGrabConfig {
     int grabDamageKnockout = 30;        // Knockout damage
     
     // Escape chance system - increases over time
-    float escapeChanceStart = 0.001f;   // Starting chance per frame (0.1%)
-    float escapeChanceEnd = 0.05f;      // Max chance per frame at ramp end (5%)
-    unsigned int escapeRampUpMs = 8000; // Time to reach max escape chance (8 sec)
+    // Note: checked every frame (~30fps), so keep values LOW
+    float escapeChanceStart = 0.0001f;  // Starting chance per frame (0.01%) ~0.3%/sec
+    float escapeChanceEnd = 0.003f;     // Max chance per frame (0.3%) ~9%/sec at max
+    unsigned int escapeRampUpMs = 15000; // Time to reach max escape chance (15 sec)
+    
+    // Phased grab settings
+    float windupDuration = 0.5f;        // Seconds of player wind-up before victim attached
+    float instantAttachDist = 0.3f;     // If victim within this distance, skip to hold
+    float attachLerpSpeed = 8.0f;       // How fast victim lerps to position during attach
 };
 
 extern CGrabConfig GrabConfig;
@@ -77,13 +84,16 @@ namespace CGrabSystem {
     // ============================================================================
     namespace Internal {
         CPed* FindGrabTarget(CPlayerPed* player);
-        void StartGrabAnimation();
+        void StartWindupPhase();        // Player starts grab anim, victim not attached
+        void StartAttachPhase();        // Begin attaching victim
         void StartHoldAnimation();
         void StartActionAnimation(eGrabAction action);
         void StartReleaseAnimation();
         void ApplyGrabDamage(eGrabAction action);
         void UpdateGrabbedPedPosition();
+        void LerpVictimToPosition(float deltaTime);  // Smooth victim positioning
         bool CheckVictimEscape();
+        float GetDistanceToTargetPosition();  // Distance victim needs to travel
         void OnAnimationEnd(CAnimBlendAssociation* anim, void* data);
     }
 }
