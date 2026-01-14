@@ -35,7 +35,7 @@ enum eGrabAction : unsigned char {
 struct CGrabConfig {
     float grabRange = 1.5f;             // Max distance to initiate grab
     float grabAngle = 45.0f;            // Max angle (degrees) to target
-    float grabOffset = 0.6f;            // Distance to position victim in front of player
+    float grabOffset = 0.7f;            // Distance to position victim in front of player
     float escapeDistance = 2.0f;        // Distance at which victim escapes
     int grabDamageJab = 5;              // Damage per jab
     int grabDamageUppercut = 15;        // Damage per uppercut

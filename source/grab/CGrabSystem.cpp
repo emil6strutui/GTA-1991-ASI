@@ -1,4 +1,5 @@
 #include "CGrabSystem.h"
+#include "CTaskSimpleGrab.h"
 #include <plugin.h>
 #include <CWorld.h>
 #include <CPed.h>
@@ -43,6 +44,71 @@ static void DebugLog(const char* fmt, ...) {
 #else
 #define DebugLog(...) ((void)0)
 #endif
+
+// ============================================================================
+// AUDIO EVENT IDs (from gta-reversed eAudioEvents.h)
+// ============================================================================
+enum eAudioEvents : int {
+    AE_PED_SWING              = 60,   // Weapon swing sound
+    AE_PED_HIT_HIGH           = 61,   // High hit with weapon
+    AE_PED_HIT_LOW            = 62,   // Low hit with weapon
+    AE_PED_HIT_GROUND         = 63,   // Ground hit
+    AE_PED_HIT_GROUND_KICK    = 64,   // Ground kick
+    AE_PED_HIT_HIGH_UNARMED   = 65,   // High punch (unarmed)
+    AE_PED_HIT_LOW_UNARMED    = 66,   // Low punch (unarmed)
+    AE_PED_HIT_MARTIAL_PUNCH  = 67,   // Martial arts punch
+    AE_PED_HIT_MARTIAL_KICK   = 68,   // Martial arts kick
+    AE_PED_KNOCK_DOWN         = 121,  // Knocked down sound
+};
+
+// ============================================================================
+// SPEECH CONTEXT IDs (from gta-reversed PedSpeechContexts.h)
+// ============================================================================
+enum eGlobalSpeechContext : short {
+    CTX_GLOBAL_FIGHT           = 89,   // Attack grunt when fighting
+    CTX_GLOBAL_PAIN_LOW        = 345,  // Low pain grunt
+    CTX_GLOBAL_PAIN_HIGH       = 344,  // High pain scream
+    CTX_GLOBAL_PAIN_DEATH_LOW  = 343,  // Low death sound
+    CTX_GLOBAL_PAIN_DEATH_HIGH = 342,  // High death sound
+};
+
+// ============================================================================
+// CRIME TYPES
+// Uses eCrimeType from plugin-sdk, plus additional values from gta-reversed
+// ============================================================================
+#include <eCrimeType.h>
+
+// Additional crime types not in plugin-sdk (from gta-reversed eCrimeType.h)
+// CRIME_DAMAGED_PED = 2 is already in plugin-sdk
+constexpr int CRIME_DAMAGED_COP = 3;   // Note: plugin-sdk has this as FIRE_WEAPON_HIT_PED, but it's actually DAMAGED_COP in game
+constexpr int CRIME_STAB_PED    = 18;  // Melee weapon kill on ped  
+constexpr int CRIME_STAB_COP    = 19;  // Melee weapon kill on cop
+
+// ============================================================================
+// FUNCTION POINTERS (addresses from gta-reversed)
+// ============================================================================
+
+// CCrime::ReportCrime - reports crime to police system
+// Address: 0x532010
+// Uses int for crime type to allow both enum values and extended constants
+typedef void(__cdecl* CCrime_ReportCrime_t)(int crimeType, CEntity* victim, CPed* criminal);
+static CCrime_ReportCrime_t CCrime_ReportCrime = reinterpret_cast<CCrime_ReportCrime_t>(0x532010);
+
+// CAEPedAudioEntity::AddAudioEvent - plays ped audio events (punches, etc)
+// Address: 0x4E2BB0
+// Audio entity offset in CPed: 0x138
+typedef void(__thiscall* AddAudioEvent_t)(void* audioEntity, int event, float volume, float speed, 
+                                          CPhysical* physical, int surfaceId, int a7, unsigned int maxVol);
+static AddAudioEvent_t AddAudioEvent = reinterpret_cast<AddAudioEvent_t>(0x4E2BB0);
+
+// CPed::Say - makes ped speak/grunt
+// Address: 0x5EFFE0
+typedef short(__thiscall* CPed_Say_t)(CPed* ped, short speechContext, unsigned int delay, 
+                                       float probability, bool overrideSilence, bool forceAudible, bool isFrontEnd);
+static CPed_Say_t CPed_Say = reinterpret_cast<CPed_Say_t>(0x5EFFE0);
+
+// Offset of m_pedAudio in CPed (after CPhysical at 0x138)
+constexpr uintptr_t PED_AUDIO_OFFSET = 0x138;
 
 // ============================================================================
 // APPROACH BASED ON GTA-REVERSED ANALYSIS:
@@ -136,6 +202,75 @@ static float GetAngleBetweenPeds(CPed* player, CPed* target) {
     return fabsf(angleDiff) * (180.0f / 3.14159f);
 }
 
+// Get forward vector from ped heading (GTA uses: forward.x = -sin(heading), forward.y = cos(heading))
+static CVector GetPedForward(CPed* ped) {
+    float heading = ped->m_fCurrentRotation;
+    CVector forward;
+    forward.x = -sinf(heading);
+    forward.y = cosf(heading);
+    forward.z = 0.0f;
+    return forward;
+}
+
+// Dot product for 2D vectors (ignoring Z)
+static float DotProduct2D(const CVector& a, const CVector& b) {
+    return a.x * b.x + a.y * b.y;
+}
+
+// Check if player is facing toward the target (using dot product like stealth kill)
+// Returns true if player's forward vector points toward target
+static bool IsPlayerFacingTarget(CPed* player, CPed* target, float minDot = 0.5f) {
+    CVector playerPos = player->GetPosition();
+    CVector targetPos = target->GetPosition();
+    
+    // Direction from player to target
+    CVector toTarget;
+    toTarget.x = targetPos.x - playerPos.x;
+    toTarget.y = targetPos.y - playerPos.y;
+    toTarget.z = 0.0f;
+    
+    // Normalize
+    float length = sqrtf(toTarget.x * toTarget.x + toTarget.y * toTarget.y);
+    if (length < 0.001f) return false;
+    toTarget.x /= length;
+    toTarget.y /= length;
+    
+    // Get player's forward vector
+    CVector playerForward = GetPedForward(player);
+    
+    // Dot product: 1.0 = same direction, 0.0 = perpendicular, -1.0 = opposite
+    float dot = DotProduct2D(playerForward, toTarget);
+    
+    return dot >= minDot;  // minDot 0.5 = within ~60 degrees of facing
+}
+
+// Check if target is facing toward player (mutual facing check)
+// This ensures they're facing each other for grab
+static bool IsTargetFacingPlayer(CPed* player, CPed* target, float minDot = 0.0f) {
+    CVector playerPos = player->GetPosition();
+    CVector targetPos = target->GetPosition();
+    
+    // Direction from target to player
+    CVector toPlayer;
+    toPlayer.x = playerPos.x - targetPos.x;
+    toPlayer.y = playerPos.y - targetPos.y;
+    toPlayer.z = 0.0f;
+    
+    // Normalize
+    float length = sqrtf(toPlayer.x * toPlayer.x + toPlayer.y * toPlayer.y);
+    if (length < 0.001f) return false;
+    toPlayer.x /= length;
+    toPlayer.y /= length;
+    
+    // Get target's forward vector
+    CVector targetForward = GetPedForward(target);
+    
+    // Dot product check
+    float dot = DotProduct2D(targetForward, toPlayer);
+    
+    return dot >= minDot;  // minDot 0.0 = within 90 degrees (not facing away)
+}
+
 static bool IsPedAlive(CPed* ped) {
     if (!ped) return false;
     if (ped->m_fHealth <= 0.0f) return false;
@@ -150,6 +285,84 @@ static bool CanGrabPed(CPed* target) {
     if (target->IsPlayer()) return false;
     if (target->bInVehicle) return false;
     return true;
+}
+
+// ============================================================================
+// CRIME AND AUDIO HELPERS
+// ============================================================================
+
+// Check if a ped is valid for audio operations
+// Must have valid pointer, be alive, and have valid RwClump
+static bool IsPedValidForAudio(CPed* ped) {
+    if (!ped) return false;
+    if (!ped->m_pRwClump) return false;
+    if (ped->m_ePedState == PEDSTATE_DEAD) return false;
+    if (ped->m_fHealth <= 0.0f) return false;
+    return true;
+}
+
+// Get the audio entity from a ped (at offset 0x138)
+static void* GetPedAudioEntity(CPed* ped) {
+    if (!ped) return nullptr;
+    return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ped) + PED_AUDIO_OFFSET);
+}
+
+// Play a hit/punch sound effect
+static void PlayHitSound(CPed* attacker, CPed* victim, eAudioEvents soundEvent) {
+    // Validate attacker (who plays the sound)
+    if (!IsPedValidForAudio(attacker)) {
+        DebugLog("PlayHitSound: attacker invalid, skipping");
+        return;
+    }
+    
+    void* audioEntity = GetPedAudioEntity(attacker);
+    if (audioEntity) {
+        // Pass attacker as the physical - AddAudioEvent crashes with nullptr!
+        // The attacker is already validated, so this is safe
+        // AddAudioEvent(audioEntity, event, volume, speed, physical, surface, a7, maxVol)
+        AddAudioEvent(audioEntity, soundEvent, 0.0f, 1.0f, attacker, 0, 0, 0);
+        DebugLog("PlayHitSound: event=%d attacker=%p", soundEvent, attacker);
+    }
+}
+
+// Make a ped say something (grunt, scream, etc)
+static void MakePedSay(CPed* ped, eGlobalSpeechContext context) {
+    // Validate ped before calling Say
+    if (!IsPedValidForAudio(ped)) {
+        DebugLog("MakePedSay: ped invalid, skipping");
+        return;
+    }
+    
+    // Say(ped, context, delay, probability, overrideSilence, forceAudible, isFrontEnd)
+    CPed_Say(ped, context, 0, 1.0f, false, false, false);
+    DebugLog("MakePedSay: ped=%p context=%d", ped, context);
+}
+
+// Report a crime to the police system
+static void ReportGrabCrime(CPed* attacker, CPed* victim, bool isLethal) {
+    if (!attacker || !victim) return;
+    
+    // Check victim is still a valid entity (not deleted)
+    if (!victim->m_pRwClump) {
+        DebugLog("ReportGrabCrime: victim invalid, skipping");
+        return;
+    }
+    
+    // Determine crime type based on victim type and lethality
+    int crimeType;
+    
+    // Check if victim is a cop (PED_TYPE_COP = 6 in ePedType)
+    bool isCop = (victim->m_nPedType == 6); // PED_TYPE_COP
+    
+    if (isLethal) {
+        crimeType = isCop ? CRIME_STAB_COP : CRIME_STAB_PED;
+    } else {
+        crimeType = isCop ? CRIME_DAMAGED_COP : CRIME_DAMAGED_PED;
+    }
+    
+    // Report the crime
+    CCrime_ReportCrime(crimeType, victim, attacker);
+    DebugLog("ReportGrabCrime: type=%d victim=%p (cop=%d) attacker=%p", crimeType, victim, isCop, attacker);
 }
 
 // ============================================================================
@@ -334,6 +547,9 @@ static void SetupVictimForGrab(CPed* victim) {
     victim->bKindaStayInSamePlace = true;
     victim->bDontFight = true;
     victim->bIsBeingArrested = true;
+    
+    // Disable collision so player and victim don't push each other during grab animations
+    victim->bUsesCollision = false;
 
     // Create stand still task - use FALSE for bUseAnimIdleStance
     // so it doesn't wait for idle to complete before finishing
@@ -351,7 +567,20 @@ static void SetupVictimForGrab(CPed* victim) {
 
 // Release victim from grab state
 static void ReleaseVictimFromGrab(CPed* victim) {
+    // Always clear our animation reference first, regardless of victim state
+    // The anim might already be freed by the game, so just null our pointer
+    g_pVictimAnim = nullptr;
+    
     if (!victim) return;
+    
+    // Check if victim still has a valid RwClump (not deleted)
+    if (!victim->m_pRwClump) {
+        DebugLog("ReleaseVictimFromGrab: victim RwClump invalid, skipping");
+        return;
+    }
+
+    // Re-enable collision
+    victim->bUsesCollision = true;
 
     // Clear flags
     victim->bStayInSamePlace = false;
@@ -359,19 +588,15 @@ static void ReleaseVictimFromGrab(CPed* victim) {
     victim->bDontFight = false;
     victim->bIsBeingArrested = false;
 
-    // Clear our task
+    // Clear our task (only if intelligence is valid)
     if (victim->m_pIntelligence) {
         CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
         taskMgr->SetTask(nullptr, TASK_PRIMARY_PRIMARY, false);
     }
 
-    // Restore to idle state
-    victim->SetPedState(PEDSTATE_IDLE);
-
-    // Clear any remaining animation reference
-    if (g_pVictimAnim) {
-        g_pVictimAnim->m_fBlendDelta = -8.0f; // Blend out quickly
-        g_pVictimAnim = nullptr;
+    // Restore to idle state (only if not dead)
+    if (victim->m_ePedState != PEDSTATE_DEAD && victim->m_ePedState != PEDSTATE_DIE) {
+        victim->SetPedState(PEDSTATE_IDLE);
     }
 }
 
@@ -387,25 +612,33 @@ static void SetupPlayerForGrab(CPlayerPed* player) {
     // Set attack state
     player->SetPedState(PEDSTATE_ATTACK);
 
-    // NOTE: We deliberately do NOT set a CTaskSimpleStandStill task
-    // This allows the player to rotate/aim with the mouse during grab
-    // The animation will still play and override normal movement
-    // We just clear secondary attack tasks to prevent combo punches
+    // Use custom grab task that:
+    // - Occupies TASK_PRIMARY_PRIMARY (prevents PlayerOnFoot from fighting)
+    // - Does NOT blend idle animation (unlike CTaskSimpleStandStill)
+    // - Allows our grab animation to play uninterrupted
+    // - Camera rotation still works (camera is processed separately)
+    CTaskSimpleGrab* grabTask = new CTaskSimpleGrab();
+    taskMgr->SetTask(grabTask, TASK_PRIMARY_PRIMARY, false);
+    
+    // Clear secondary attack tasks to prevent combo punches
     taskMgr->SetTask(nullptr, TASK_SECONDARY_ATTACK, false);
     taskMgr->SetTask(nullptr, TASK_SECONDARY_DUCK, false);
 }
 
 static void ReleasePlayerFromGrab(CPlayerPed* player) {
+    // Always clear our animation reference first
+    g_pPlayerAnim = nullptr;
+    
     if (!player) return;
 
-    // We didn't set a primary task, so nothing to clear
-    // Just restore player state and blend out the grab animation
-    player->SetPedState(PEDSTATE_IDLE);
-
-    if (g_pPlayerAnim) {
-        g_pPlayerAnim->m_fBlendDelta = -8.0f;
-        g_pPlayerAnim = nullptr;
+    // Clear the grab task we set
+    if (player->m_pIntelligence) {
+        CTaskManager* taskMgr = &player->m_pIntelligence->m_TaskMgr;
+        taskMgr->SetTask(nullptr, TASK_PRIMARY_PRIMARY, false);
     }
+
+    // Restore player state
+    player->SetPedState(PEDSTATE_IDLE);
 }
 
 // ============================================================================
@@ -441,6 +674,19 @@ CPed* FindGrabTarget(CPlayerPed* player) {
         if (!CanGrabPed(ped)) continue;
         if (ped == player) continue;
 
+        // Check 1: Player must be facing the target (dot product >= 0.5, within ~60 degrees)
+        if (!IsPlayerFacingTarget(player, ped, 0.5f)) {
+            DebugLog("FindGrabTarget: ped=%p rejected - player not facing target", ped);
+            continue;
+        }
+
+        // Check 2: Target should be somewhat facing player (not completely turned away)
+        // Using minDot 0.0 means target must be within 90 degrees of facing player
+        if (!IsTargetFacingPlayer(player, ped, 0.0f)) {
+            DebugLog("FindGrabTarget: ped=%p rejected - target facing away", ped);
+            continue;
+        }
+
         float angle = GetAngleBetweenPeds(player, ped);
         if (angle < bestAngle) {
             bestAngle = angle;
@@ -451,9 +697,58 @@ CPed* FindGrabTarget(CPlayerPed* player) {
     return bestTarget;
 }
 
+// Position both peds correctly at the start of a grab (like stealth kill does)
+// This ensures animations line up properly
+void PositionPedsForGrab(CPlayerPed* player, CPed* victim) {
+    if (!player || !victim) return;
+
+    CVector playerPos = player->GetPosition();
+    CVector victimPos = victim->GetPosition();
+
+    // Calculate direction from player to victim
+    CVector toVictim;
+    toVictim.x = victimPos.x - playerPos.x;
+    toVictim.y = victimPos.y - playerPos.y;
+    toVictim.z = 0.0f;
+
+    // Calculate heading that faces the victim (GTA heading: atan2(-x, y))
+    float headingToVictim = atan2f(-toVictim.x, toVictim.y);
+
+    // Rotate player to face victim
+    player->m_fCurrentRotation = headingToVictim;
+    player->m_fAimingRotation = headingToVictim;
+
+    // Rotate victim to face player (opposite direction)
+    float headingToPlayer = headingToVictim + 3.14159f;
+    // Normalize to [-PI, PI]
+    while (headingToPlayer > 3.14159f) headingToPlayer -= 6.28318f;
+    while (headingToPlayer < -3.14159f) headingToPlayer += 6.28318f;
+
+    victim->m_fCurrentRotation = headingToPlayer;
+    victim->m_fAimingRotation = headingToPlayer;
+
+    // Position victim at the correct distance in front of player
+    // Target position: grabOffset distance in front of player
+    float targetX = playerPos.x + (-sinf(headingToVictim)) * GrabConfig.grabOffset;
+    float targetY = playerPos.y + cosf(headingToVictim) * GrabConfig.grabOffset;
+
+    // Move victim to target position
+    CVector newVictimPos = victimPos;
+    newVictimPos.x = targetX;
+    newVictimPos.y = targetY;
+    // Keep same Z (height) - don't teleport them into ground/air
+    victim->SetPosn(newVictimPos);
+
+    DebugLog("PositionPedsForGrab: player heading=%.2f, victim heading=%.2f, offset=%.2f",
+             headingToVictim, headingToPlayer, GrabConfig.grabOffset);
+}
+
 void StartGrabAnimation() {
     CPlayerPed* player = GetPlayer();
     if (!player || !g_pGrabbedPed) return;
+
+    // Position both peds to face each other at correct distance
+    PositionPedsForGrab(player, g_pGrabbedPed);
 
     // Reset animation finished flags
     g_bPlayerAnimFinished = false;
@@ -616,29 +911,67 @@ void StartReleaseAnimation() {
 void ApplyGrabDamage(eGrabAction action) {
     if (!g_pGrabbedPed) return;
 
+    CPlayerPed* player = GetPlayer();
+    if (!player) return;
+
     float damage = 0.0f;
+    eAudioEvents hitSound = AE_PED_HIT_HIGH_UNARMED;  // Default punch sound
+    eGlobalSpeechContext painContext = CTX_GLOBAL_PAIN_LOW;
+    bool isLethal = false;
+
     switch (action) {
         case GRAB_ACTION_JAB:
             damage = static_cast<float>(GrabConfig.grabDamageJab);
+            hitSound = AE_PED_HIT_HIGH_UNARMED;
+            painContext = CTX_GLOBAL_PAIN_LOW;
             break;
         case GRAB_ACTION_UPPERCUT:
             damage = static_cast<float>(GrabConfig.grabDamageUppercut);
+            hitSound = AE_PED_HIT_LOW_UNARMED;  // Body hit for uppercut/stomach
+            painContext = CTX_GLOBAL_PAIN_HIGH;
             break;
         case GRAB_ACTION_THROW:
             damage = static_cast<float>(GrabConfig.grabDamageThrow);
+            hitSound = AE_PED_HIT_GROUND;
+            painContext = CTX_GLOBAL_PAIN_HIGH;
             break;
         case GRAB_ACTION_KNOCKOUT:
             damage = static_cast<float>(GrabConfig.grabDamageKnockout);
+            hitSound = AE_PED_KNOCK_DOWN;
+            painContext = CTX_GLOBAL_PAIN_HIGH;
+            isLethal = true;  // Knockout counts as serious crime
             break;
         default:
             break;
     }
 
     if (damage > 0.0f) {
+        // Apply damage
         g_pGrabbedPed->m_fHealth -= damage;
         if (g_pGrabbedPed->m_fHealth < 0.0f) {
             g_pGrabbedPed->m_fHealth = 0.0f;
+            isLethal = true;  // Victim died, upgrade crime
         }
+
+        // Play hit sound from player
+        PlayHitSound(player, g_pGrabbedPed, hitSound);
+
+        // Player attack grunt (optional, for immersion)
+        MakePedSay(player, CTX_GLOBAL_FIGHT);
+
+        // Victim pain sound
+        if (g_pGrabbedPed->m_fHealth > 0.0f) {
+            MakePedSay(g_pGrabbedPed, painContext);
+        } else {
+            // Death sound if victim died
+            MakePedSay(g_pGrabbedPed, CTX_GLOBAL_PAIN_DEATH_HIGH);
+        }
+
+        // Report crime to police system
+        ReportGrabCrime(player, g_pGrabbedPed, isLethal);
+
+        DebugLog("ApplyGrabDamage: action=%d damage=%.1f health=%.1f isLethal=%d", 
+                 action, damage, g_pGrabbedPed->m_fHealth, isLethal);
     }
 }
 
@@ -646,17 +979,49 @@ void UpdateGrabbedPedPosition() {
     CPlayerPed* player = GetPlayer();
     if (!player || !g_pGrabbedPed) return;
 
+    // Calculate target position in front of player
     CVector playerPos = player->GetPosition();
     float playerHeading = player->m_fCurrentRotation;
 
     float offsetX = -sinf(playerHeading) * GrabConfig.grabOffset;
     float offsetY = cosf(playerHeading) * GrabConfig.grabOffset;
 
-    CVector newPos = playerPos;
-    newPos.x += offsetX;
-    newPos.y += offsetY;
+    CVector targetPos;
+    targetPos.x = playerPos.x + offsetX;
+    targetPos.y = playerPos.y + offsetY;
+    targetPos.z = playerPos.z;
 
-    g_pGrabbedPed->SetPosn(newPos);
+    // Calculate distance from victim to target position
+    CVector victimPos = g_pGrabbedPed->GetPosition();
+    CVector toTarget;
+    toTarget.x = targetPos.x - victimPos.x;
+    toTarget.y = targetPos.y - victimPos.y;
+    toTarget.z = 0.0f;
+
+    float distance = sqrtf(toTarget.x * toTarget.x + toTarget.y * toTarget.y);
+
+    // Use m_vecAnimMovingShiftLocal for smooth movement (like stealth kill)
+    // This lets the animation system handle movement, avoiding collision issues
+    if (distance > 0.02f) {
+        // Convert world-space direction to local-space (relative to victim's facing)
+        float victimHeading = g_pGrabbedPed->m_fCurrentRotation;
+        float cosH = cosf(victimHeading);
+        float sinH = sinf(victimHeading);
+
+        // Rotate world direction into local space
+        float localX = toTarget.x * cosH + toTarget.y * sinH;   // right/left
+        float localY = -toTarget.x * sinH + toTarget.y * cosH;  // forward/back
+
+        // Apply shift with speed limit (like stealth kill's 0.05f factor)
+        float shiftSpeed = CTimer::ms_fTimeStep * 0.08f;
+        g_pGrabbedPed->m_vecAnimMovingShiftLocal.x = std::min(shiftSpeed, std::abs(localX)) * (localX > 0 ? 1.0f : -1.0f);
+        g_pGrabbedPed->m_vecAnimMovingShiftLocal.y = std::min(shiftSpeed, std::abs(localY)) * (localY > 0 ? 1.0f : -1.0f);
+    } else {
+        g_pGrabbedPed->m_vecAnimMovingShiftLocal.x = 0.0f;
+        g_pGrabbedPed->m_vecAnimMovingShiftLocal.y = 0.0f;
+    }
+
+    // Keep victim facing opposite direction of player
     g_pGrabbedPed->m_fCurrentRotation = playerHeading + 3.14159f;
     g_pGrabbedPed->m_fAimingRotation = playerHeading + 3.14159f;
 }
