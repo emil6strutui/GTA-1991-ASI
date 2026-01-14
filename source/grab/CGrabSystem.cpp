@@ -1206,12 +1206,24 @@ void UpdateGrabbedPedPosition() {
     CPlayerPed* player = GetPlayer();
     if (!player || !g_pGrabbedPed) return;
 
-    // Calculate target position in front of player
     CVector playerPos = player->GetPosition();
-    float playerHeading = player->m_fCurrentRotation;
-
-    float offsetX = -sinf(playerHeading) * GrabConfig.grabOffset;
-    float offsetY = cosf(playerHeading) * GrabConfig.grabOffset;
+    CVector victimPos = g_pGrabbedPed->GetPosition();
+    
+    // Calculate direction from player to victim
+    CVector toVictim;
+    toVictim.x = victimPos.x - playerPos.x;
+    toVictim.y = victimPos.y - playerPos.y;
+    
+    // Calculate heading player should have to face victim
+    float headingToVictim = atan2f(-toVictim.x, toVictim.y);
+    
+    // LOCK player heading to face victim during grab
+    player->m_fCurrentRotation = headingToVictim;
+    player->m_fAimingRotation = headingToVictim;
+    
+    // Calculate target position for victim (in front of player)
+    float offsetX = -sinf(headingToVictim) * GrabConfig.grabOffset;
+    float offsetY = cosf(headingToVictim) * GrabConfig.grabOffset;
 
     CVector targetPos;
     targetPos.x = playerPos.x + offsetX;
@@ -1219,7 +1231,6 @@ void UpdateGrabbedPedPosition() {
     targetPos.z = playerPos.z;
 
     // Calculate distance from victim to target position
-    CVector victimPos = g_pGrabbedPed->GetPosition();
     CVector toTarget;
     toTarget.x = targetPos.x - victimPos.x;
     toTarget.y = targetPos.y - victimPos.y;
@@ -1228,7 +1239,6 @@ void UpdateGrabbedPedPosition() {
     float distance = sqrtf(toTarget.x * toTarget.x + toTarget.y * toTarget.y);
 
     // Use m_vecAnimMovingShiftLocal for smooth movement (like stealth kill)
-    // This lets the animation system handle movement, avoiding collision issues
     if (distance > 0.02f) {
         // Convert world-space direction to local-space (relative to victim's facing)
         float victimHeading = g_pGrabbedPed->m_fCurrentRotation;
@@ -1236,10 +1246,10 @@ void UpdateGrabbedPedPosition() {
         float sinH = sinf(victimHeading);
 
         // Rotate world direction into local space
-        float localX = toTarget.x * cosH + toTarget.y * sinH;   // right/left
-        float localY = -toTarget.x * sinH + toTarget.y * cosH;  // forward/back
+        float localX = toTarget.x * cosH + toTarget.y * sinH;
+        float localY = -toTarget.x * sinH + toTarget.y * cosH;
 
-        // Apply shift with speed limit (like stealth kill's 0.05f factor)
+        // Apply shift with speed limit
         float shiftSpeed = CTimer::ms_fTimeStep * 0.08f;
         g_pGrabbedPed->m_vecAnimMovingShiftLocal.x = std::min(shiftSpeed, std::abs(localX)) * (localX > 0 ? 1.0f : -1.0f);
         g_pGrabbedPed->m_vecAnimMovingShiftLocal.y = std::min(shiftSpeed, std::abs(localY)) * (localY > 0 ? 1.0f : -1.0f);
@@ -1248,9 +1258,10 @@ void UpdateGrabbedPedPosition() {
         g_pGrabbedPed->m_vecAnimMovingShiftLocal.y = 0.0f;
     }
 
-    // Keep victim facing opposite direction of player
-    g_pGrabbedPed->m_fCurrentRotation = playerHeading + 3.14159f;
-    g_pGrabbedPed->m_fAimingRotation = playerHeading + 3.14159f;
+    // Keep victim facing player (opposite direction)
+    float headingToPlayer = headingToVictim + 3.14159f;
+    g_pGrabbedPed->m_fCurrentRotation = headingToPlayer;
+    g_pGrabbedPed->m_fAimingRotation = headingToPlayer;
 }
 
 bool CheckVictimEscape() {
