@@ -61,6 +61,12 @@ struct CGrabConfig {
     float hitThresholdUppercut = 0.50f; // Uppercut winds up a bit
     float hitThresholdThrow = 0.75f;    // Throw releases late in animation
     float hitThresholdKnockout = 0.65f; // Knockout hit timing
+
+    // Animation speed multipliers (1.0 = normal, 1.25 = 25% faster, 0.8 = 20% slower)
+    float animSpeedJab = 1.3f;         // Jab plays faster
+    float animSpeedUppercut = 0.9f;     // Normal speed
+    float animSpeedThrow = 1.0f;        // Normal speed
+    float animSpeedKnockout = 1.0f;     // Normal speed
 };
 
 extern CGrabConfig GrabConfig;

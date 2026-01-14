@@ -23,7 +23,7 @@
 // ============================================================================
 // DEBUG LOGGING
 // ============================================================================
-#define GRAB_DEBUG 1
+#define GRAB_DEBUG 0
 
 #if GRAB_DEBUG
 static FILE* g_debugLog = nullptr;
@@ -185,6 +185,10 @@ namespace {
 
     // Animation progress tracking for damage timing
     bool g_bDamageAppliedThisAction = false;  // Prevents applying damage multiple times
+
+    // Player damage detection - to break grab when player is hit
+    float g_fPlayerLastHealth = 0.0f;
+    float g_fPlayerLastArmour = 0.0f;
 }
 
 // Forward declarations
@@ -528,6 +532,22 @@ static float GetHitThresholdForAction(eGrabAction action) {
             return GrabConfig.hitThresholdKnockout;
         default:
             return 0.70f;  // Fallback
+    }
+}
+
+// Get the animation speed multiplier for a specific grab action
+static float GetAnimSpeedForAction(eGrabAction action) {
+    switch (action) {
+        case GRAB_ACTION_JAB:
+            return GrabConfig.animSpeedJab;
+        case GRAB_ACTION_UPPERCUT:
+            return GrabConfig.animSpeedUppercut;
+        case GRAB_ACTION_THROW:
+            return GrabConfig.animSpeedThrow;
+        case GRAB_ACTION_KNOCKOUT:
+            return GrabConfig.animSpeedKnockout;
+        default:
+            return 1.0f;  // Normal speed fallback
     }
 }
 
@@ -1070,16 +1090,6 @@ void StartActionAnimation(eGrabAction action) {
     CPlayerPed* player = GetPlayer();
     if (!player || !g_pGrabbedPed) return;
 
-    const char* actionName = "UNKNOWN";
-    switch (action) {
-        case GRAB_ACTION_JAB: actionName = "JAB"; break;
-        case GRAB_ACTION_UPPERCUT: actionName = "UPPERCUT"; break;
-        case GRAB_ACTION_THROW: actionName = "THROW"; break;
-        case GRAB_ACTION_KNOCKOUT: actionName = "KNOCKOUT"; break;
-        default: break;
-    }
-    DebugLog("StartActionAnimation: action=%s (%d)", actionName, action);
-
     // CRITICAL: Clean up old animations before playing new ones
     CleanupAnimation(g_pPlayerAnim);
     CleanupAnimation(g_pVictimAnim);
@@ -1134,14 +1144,17 @@ void StartActionAnimation(eGrabAction action) {
         nullptr
     );
 
-    // IMPORTANT: Don't apply damage here!
-    // Damage is applied in Process() when animation reaches the per-action threshold
-    // Reset the flag so damage will be applied once progress hits threshold
-    g_bDamageAppliedThisAction = false;
+    // Apply animation speed multiplier for this action
+    float animSpeed = GetAnimSpeedForAction(action);
+    if (g_pPlayerAnim) {
+        g_pPlayerAnim->m_fSpeed = animSpeed;
+    }
+    if (g_pVictimAnim) {
+        g_pVictimAnim->m_fSpeed = animSpeed;
+    }
 
-    float hitThreshold = GetHitThresholdForAction(action);
-    DebugLog("StartActionAnimation: action=%d waiting for %.0f%% progress before applying damage",
-             action, hitThreshold * 100.0f);
+    // Reset flag so damage will be applied once progress hits threshold
+    g_bDamageAppliedThisAction = false;
 }
 
 void StartReleaseAnimation() {
@@ -1386,8 +1399,24 @@ void Process() {
         return;
     }
 
-    // NOTE: Hard timeout removed - escape chance system handles gradual release
-    // Victim escape chance increases over time in CheckVictimEscape()
+    // Check if player took damage - break grab if hit
+    if (g_grabState != GRAB_STATE_NONE) {
+        float currentHealth = player->m_fHealth;
+        float currentArmour = player->m_fArmour;
+
+        // If health or armour decreased, player was hit - release grab
+        if (currentHealth < g_fPlayerLastHealth || currentArmour < g_fPlayerLastArmour) {
+            ForceReleaseGrab();
+            // Update tracked values after release
+            g_fPlayerLastHealth = currentHealth;
+            g_fPlayerLastArmour = currentArmour;
+            return;
+        }
+
+        // Update tracked values
+        g_fPlayerLastHealth = currentHealth;
+        g_fPlayerLastArmour = currentArmour;
+    }
 
     switch (g_grabState) {
         case GRAB_STATE_NONE:
@@ -1520,24 +1549,12 @@ void Process() {
                     Internal::UpdateGrabbedPedPosition();
                 }
 
-                // Get the hit threshold for current action
-                float hitThreshold = GetHitThresholdForAction(g_currentAction);
-
                 // Check animation progress and apply damage at threshold
                 float playerProgress = GetAnimationProgress(g_pPlayerAnim);
-
-                // Debug: Log animation progress every few frames
-                static unsigned int lastDebugTime = 0;
-                if (CTimer::m_snTimeInMilliseconds - lastDebugTime > 50) {  // Every 50ms
-                    DebugLog("PERFORMING [%d]: progress=%.1f%% (threshold=%.0f%%) damageApplied=%d",
-                             g_currentAction, playerProgress * 100.0f, hitThreshold * 100.0f, g_bDamageAppliedThisAction);
-                    lastDebugTime = CTimer::m_snTimeInMilliseconds;
-                }
+                float hitThreshold = GetHitThresholdForAction(g_currentAction);
 
                 // Apply damage when animation reaches threshold (and hasn't been applied yet)
                 if (!g_bDamageAppliedThisAction && playerProgress >= hitThreshold) {
-                    DebugLog("PERFORMING: HIT! action=%d progress=%.1f%% threshold=%.0f%% - applying damage",
-                             g_currentAction, playerProgress * 100.0f, hitThreshold * 100.0f);
                     Internal::ApplyGrabDamage(g_currentAction);
                     g_bDamageAppliedThisAction = true;
                 }
@@ -1547,13 +1564,10 @@ void Process() {
                 bool canFinish = g_bPlayerAnimFinished && (g_bVictimAnimFinished || victimDead);
 
                 if (canFinish) {
-                    DebugLog("PERFORMING -> finished: action=%d, victimDead=%d",
-                        g_currentAction, victimDead);
                     // Always release after action if victim died, or if throw/knockout
                     if (victimDead || g_currentAction == GRAB_ACTION_THROW || g_currentAction == GRAB_ACTION_KNOCKOUT) {
                         ForceReleaseGrab();
                     } else {
-                        DebugLog("PERFORMING -> HOLDING: returning to hold");
                         Internal::StartHoldAnimation();
                     }
                 }
@@ -1609,6 +1623,11 @@ bool TryInitiateGrab() {
     }
     
     g_grabStartTime = CTimer::m_snTimeInMilliseconds;
+
+    // Initialize health tracking for damage detection
+    g_fPlayerLastHealth = player->m_fHealth;
+    g_fPlayerLastArmour = player->m_fArmour;
+
     Internal::StartWindupPhase();
 
     return true;  // Always return true - animation plays regardless
