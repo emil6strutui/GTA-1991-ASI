@@ -42,17 +42,25 @@ struct CGrabConfig {
     int grabDamageUppercut = 15;        // Damage per uppercut
     int grabDamageThrow = 10;           // Damage from throw
     int grabDamageKnockout = 30;        // Knockout damage
-    
+
     // Escape chance system - increases over time
     // Note: checked every frame (~30fps), so keep values LOW
     float escapeChanceStart = 0.0001f;  // Starting chance per frame (0.01%) ~0.3%/sec
     float escapeChanceEnd = 0.003f;     // Max chance per frame (0.3%) ~9%/sec at max
     unsigned int escapeRampUpMs = 15000; // Time to reach max escape chance (15 sec)
-    
+
     // Phased grab settings
     float windupDuration = 0.5f;        // Seconds of player wind-up before victim attached
     float instantAttachDist = 0.3f;     // If victim within this distance, skip to hold
     float attachLerpSpeed = 8.0f;       // How fast victim lerps to position during attach
+
+    // Hit timing thresholds (0.0 - 1.0)
+    // Controls when damage, hit sound, and victim grunt are applied
+    // Example: 0.5 = apply at 50% of animation, 0.7 = apply at 70%
+    float hitThresholdJab = 0.50f;      // Jab is quick - hits early
+    float hitThresholdUppercut = 0.50f; // Uppercut winds up a bit
+    float hitThresholdThrow = 0.75f;    // Throw releases late in animation
+    float hitThresholdKnockout = 0.65f; // Knockout hit timing
 };
 
 extern CGrabConfig GrabConfig;

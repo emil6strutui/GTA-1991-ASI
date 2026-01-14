@@ -178,10 +178,13 @@ namespace {
     // Track when animations finish via callbacks
     bool g_bPlayerAnimFinished = false;
     bool g_bVictimAnimFinished = false;
-    
+
     // Target position for victim during attach phase
     CVector g_victimTargetPos;
     float g_victimTargetHeading = 0.0f;
+
+    // Animation progress tracking for damage timing
+    bool g_bDamageAppliedThisAction = false;  // Prevents applying damage multiple times
 }
 
 // Forward declarations
@@ -495,6 +498,37 @@ static unsigned int GetAnimationDurationMs(CAnimBlendHierarchy* hier) {
     if (!hier) return 500; // Default fallback
     // m_fTotalTime is in seconds, convert to milliseconds
     return static_cast<unsigned int>(hier->m_fTotalTime * 1000.0f);
+}
+
+// Get animation progress as 0.0 to 1.0 fraction
+// Returns -1.0 if animation is invalid
+static float GetAnimationProgress(CAnimBlendAssociation* anim) {
+    if (!anim) return -1.0f;
+    if (!anim->m_pHierarchy) return -1.0f;
+    if (anim->m_pHierarchy->m_fTotalTime <= 0.0f) return -1.0f;
+
+    float progress = anim->m_fCurrentTime / anim->m_pHierarchy->m_fTotalTime;
+    // Clamp to valid range
+    if (progress < 0.0f) progress = 0.0f;
+    if (progress > 1.0f) progress = 1.0f;
+    return progress;
+}
+
+// Get the hit timing threshold for a specific grab action
+// Returns the animation progress (0.0-1.0) at which damage/sound should be applied
+static float GetHitThresholdForAction(eGrabAction action) {
+    switch (action) {
+        case GRAB_ACTION_JAB:
+            return GrabConfig.hitThresholdJab;
+        case GRAB_ACTION_UPPERCUT:
+            return GrabConfig.hitThresholdUppercut;
+        case GRAB_ACTION_THROW:
+            return GrabConfig.hitThresholdThrow;
+        case GRAB_ACTION_KNOCKOUT:
+            return GrabConfig.hitThresholdKnockout;
+        default:
+            return 0.70f;  // Fallback
+    }
 }
 
 // ============================================================================
@@ -1100,7 +1134,14 @@ void StartActionAnimation(eGrabAction action) {
         nullptr
     );
 
-    ApplyGrabDamage(action);
+    // IMPORTANT: Don't apply damage here!
+    // Damage is applied in Process() when animation reaches the per-action threshold
+    // Reset the flag so damage will be applied once progress hits threshold
+    g_bDamageAppliedThisAction = false;
+
+    float hitThreshold = GetHitThresholdForAction(action);
+    DebugLog("StartActionAnimation: action=%d waiting for %.0f%% progress before applying damage",
+             action, hitThreshold * 100.0f);
 }
 
 void StartReleaseAnimation() {
@@ -1478,11 +1519,33 @@ void Process() {
                 if (g_pGrabbedPed && IsPedAlive(g_pGrabbedPed)) {
                     Internal::UpdateGrabbedPedPosition();
                 }
-                
+
+                // Get the hit threshold for current action
+                float hitThreshold = GetHitThresholdForAction(g_currentAction);
+
+                // Check animation progress and apply damage at threshold
+                float playerProgress = GetAnimationProgress(g_pPlayerAnim);
+
+                // Debug: Log animation progress every few frames
+                static unsigned int lastDebugTime = 0;
+                if (CTimer::m_snTimeInMilliseconds - lastDebugTime > 50) {  // Every 50ms
+                    DebugLog("PERFORMING [%d]: progress=%.1f%% (threshold=%.0f%%) damageApplied=%d",
+                             g_currentAction, playerProgress * 100.0f, hitThreshold * 100.0f, g_bDamageAppliedThisAction);
+                    lastDebugTime = CTimer::m_snTimeInMilliseconds;
+                }
+
+                // Apply damage when animation reaches threshold (and hasn't been applied yet)
+                if (!g_bDamageAppliedThisAction && playerProgress >= hitThreshold) {
+                    DebugLog("PERFORMING: HIT! action=%d progress=%.1f%% threshold=%.0f%% - applying damage",
+                             g_currentAction, playerProgress * 100.0f, hitThreshold * 100.0f);
+                    Internal::ApplyGrabDamage(g_currentAction);
+                    g_bDamageAppliedThisAction = true;
+                }
+
                 // Check if player animation finished (don't wait for victim if they died)
                 bool victimDead = !g_pGrabbedPed || !IsPedAlive(g_pGrabbedPed);
                 bool canFinish = g_bPlayerAnimFinished && (g_bVictimAnimFinished || victimDead);
-                
+
                 if (canFinish) {
                     DebugLog("PERFORMING -> finished: action=%d, victimDead=%d",
                         g_currentAction, victimDead);
