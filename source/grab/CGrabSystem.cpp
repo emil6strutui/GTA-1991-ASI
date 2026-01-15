@@ -66,9 +66,12 @@ namespace CGrabSystem
             return false;
         }
 
-        // Check if player already has a grab task running
-        // We could check the task manager here, but for simplicity
-        // we'll rely on the task system to handle conflicts
+        // Disallow grab while sprinting (doesn't make sense gameplay-wise)
+        // PEDMOVE_SPRINT = 4
+        if (player->m_nMoveState == PEDMOVE_SPRINT)
+        {
+            return false;
+        }
 
         return true;
     }
@@ -86,9 +89,32 @@ namespace CGrabSystem
         // Create the grab task
         CTaskSimpleGrab* grabTask = new CTaskSimpleGrab();
 
-        // Assign to SECONDARY_ATTACK slot (same as fight task)
+        // Assign to PRIMARY_PHYSICAL_RESPONSE slot (highest priority, overrides sprint)
         CTaskManager* taskMgr = &player->m_pIntelligence->m_TaskMgr;
-        taskMgr->SetTaskSecondary((CTask*)grabTask, TASK_SECONDARY_ATTACK);
+        taskMgr->SetTask((CTask*)grabTask, TASK_PRIMARY_PHYSICAL_RESPONSE, false);
+    }
+
+    // Our custom task type ID (must match CTaskSimpleGrab.cpp)
+    constexpr eTaskType TASK_SIMPLE_GRAB = (eTaskType)9001;
+
+    // ========================================================================
+    // Helper: Get player's current grab task (if any)
+    // ========================================================================
+    static CTaskSimpleGrab* GetPlayerGrabTask(CPlayerPed* player)
+    {
+        if (!player || !player->m_pIntelligence)
+        {
+            return nullptr;
+        }
+
+        CTaskManager* taskMgr = &player->m_pIntelligence->m_TaskMgr;
+        CTask* task = taskMgr->m_aPrimaryTasks[TASK_PRIMARY_PHYSICAL_RESPONSE];
+        
+        if (task && task->GetId() == TASK_SIMPLE_GRAB)
+        {
+            return static_cast<CTaskSimpleGrab*>(task);
+        }
+        return nullptr;
     }
 
     // ========================================================================
@@ -107,6 +133,19 @@ namespace CGrabSystem
         if (!player)
         {
             return;
+        }
+
+        // Check if player is already grabbing - if so, release
+        CTaskSimpleGrab* existingGrab = GetPlayerGrabTask(player);
+        if (existingGrab)
+        {
+            CTaskSimpleGrab::eGrabState state = existingGrab->GetState();
+            if (state == CTaskSimpleGrab::eGrabState::ATTACHED || 
+                state == CTaskSimpleGrab::eGrabState::HOLDING)
+            {
+                existingGrab->ReleaseVictim();
+                return;
+            }
         }
 
         // Check if player can grab

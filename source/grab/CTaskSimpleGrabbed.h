@@ -30,6 +30,7 @@ public:
     // Animation names (must match IFP)
     static constexpr const char* ANIM_BLOCK_NAME = "fight_a";
     static constexpr const char* ANIM_GRABBED = "Fight_grabbed";
+    static constexpr const char* ANIM_GRABBED_IDLE = "Fight_grabbed_idle";
     
     // How much forward distance the grab animation covers (root motion)
     static constexpr float ANIM_FORWARD_DISTANCE = 0.1f;
@@ -54,6 +55,9 @@ private:
     
     // Whether we've set the initial start position
     bool m_bStartPositionSet;
+    
+    // Whether to start directly with idle animation (for snap case)
+    bool m_bStartWithIdle;
 
 public:
     // ========== Constructor/Destructor ==========
@@ -84,6 +88,9 @@ public:
     
     // Set animation skip amount (synced with grabber)
     void SetAnimationSkip(float skip);
+    
+    // Set to start directly with idle animation (for snap case)
+    void SetStartWithIdle(bool startWithIdle);
 
 private:
     // ========== Internal Methods ==========

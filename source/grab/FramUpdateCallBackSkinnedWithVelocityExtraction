@@ -1,0 +1,406 @@
+.text:004D1680
+.text:004D1680                             ; void __usercall FrameUpdateCallBackSkinnedWithVelocityExtraction(_DWORD *@<eax>, int)
+.text:004D1680                             FrameUpdateCallBackSkinnedWithVelocityExtraction proc near
+.text:004D1680                                                                     ; CODE XREF: FrameUpdateCallBackSkinned:loc_4D2BC2↓p
+.text:004D1680                                                                     ; FrameUpdateCallbackNoRender+1B↓p
+.text:004D1680
+.text:004D1680                             a3              = dword ptr -78h
+.text:004D1680                             var_65          = byte ptr -65h
+.text:004D1680                             var_64          = dword ptr -64h
+.text:004D1680                             var_60          = dword ptr -60h
+.text:004D1680                             var_5C          = dword ptr -5Ch
+.text:004D1680                             var_58          = dword ptr -58h
+.text:004D1680                             var_54          = dword ptr -54h
+.text:004D1680                             a2              = CVector ptr -50h
+.text:004D1680                             var_44          = dword ptr -44h
+.text:004D1680                             var_40          = dword ptr -40h
+.text:004D1680                             var_38          = dword ptr -38h
+.text:004D1680                             var_34          = dword ptr -34h
+.text:004D1680                             var_2C          = dword ptr -2Ch
+.text:004D1680                             var_28          = dword ptr -28h
+.text:004D1680                             var_20          = dword ptr -20h
+.text:004D1680                             var_1C          = dword ptr -1Ch
+.text:004D1680                             var_18          = dword ptr -18h
+.text:004D1680                             var_14          = dword ptr -14h
+.text:004D1680                             var_10          = dword ptr -10h
+.text:004D1680                             var_C           = dword ptr -0Ch
+.text:004D1680                             var_8           = dword ptr -8
+.text:004D1680                             var_4           = dword ptr -4
+.text:004D1680                             arg_0           = dword ptr  4
+.text:004D1680
+.text:004D1680 000 83 EC 68                                sub     esp, 68h        ; Integer Subtraction
+.text:004D1683 068 55                                      push    ebp
+.text:004D1684 06C 56                                      push    esi
+.text:004D1685 070 57                                      push    edi
+.text:004D1686 074 8B F8                                   mov     edi, eax
+.text:004D1688 074 8B 44 24 78                             mov     eax, [esp+74h+arg_0]
+.text:004D168C 074 8B 68 10                                mov     ebp, [eax+10h]
+.text:004D168F 074 83 3F 00                                cmp     dword ptr [edi], 0 ; Compare Two Operands
+.text:004D1692 074 C7 44 24 3C 00 00 00 00                 mov     [esp+74h+var_38], 0
+.text:004D169A 074 C7 44 24 40 00 00 00 00                 mov     [esp+74h+var_34], 0
+.text:004D16A2 074 C7 44 24 30 00 00 00 00                 mov     [esp+74h+var_44], 0
+.text:004D16AA 074 C7 44 24 34 00 00 00 00                 mov     [esp+74h+var_40], 0
+.text:004D16B2 074 C7 44 24 48 00 00 00 00                 mov     [esp+74h+var_2C], 0
+.text:004D16BA 074 C7 44 24 4C 00 00 00 00                 mov     [esp+74h+var_28], 0
+.text:004D16C2 074 C7 44 24 18 00 00 00 00                 mov     [esp+74h+var_5C], 0
+.text:004D16CA 074 C7 44 24 1C 00 00 00 00                 mov     [esp+74h+var_58], 0
+.text:004D16D2 074 C7 44 24 20 00 00 00 00                 mov     [esp+74h+var_54], 0
+.text:004D16DA 074 C7 44 24 54 00 00 00 00                 mov     [esp+74h+var_20], 0
+.text:004D16E2 074 C7 44 24 58 00 00 00 00                 mov     [esp+74h+var_1C], 0
+.text:004D16EA 074 C7 44 24 5C 00 00 00 00                 mov     [esp+74h+var_18], 0
+.text:004D16F2 074 C7 44 24 60 00 00 00 00                 mov     [esp+74h+var_14], 0
+.text:004D16FA 074 C6 44 24 0F 00                          mov     [esp+74h+var_65], 0
+.text:004D16FF 074 C7 44 24 10 00 00 00 00                 mov     [esp+74h+var_64], 0
+.text:004D1707 074 74 3E                                   jz      short loc_4D1747 ; Jump if Zero (ZF=1)
+.text:004D1707
+.text:004D1709 074 8B 47 04                                mov     eax, [edi+4]
+.text:004D170C 074 8D 77 04                                lea     esi, [edi+4]    ; Load Effective Address
+.text:004D170F 074 90                                      nop                     ; No Operation
+.text:004D170F
+.text:004D1710
+.text:004D1710                             loc_4D1710:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+C5↓j
+.text:004D1710 074 8B 48 10                                mov     ecx, [eax+10h]
+.text:004D1713 074 85 C9                                   test    ecx, ecx        ; Logical Compare
+.text:004D1715 074 74 26                                   jz      short loc_4D173D ; Jump if Zero (ZF=1)
+.text:004D1715
+.text:004D1717 074 8B 40 14                                mov     eax, [eax+14h]
+.text:004D171A 074 33 C9                                   xor     ecx, ecx        ; Logical Exclusive OR
+.text:004D171C 074 66 8B 48 2E                             mov     cx, [eax+2Eh]
+.text:004D1720 074 8A D1                                   mov     dl, cl
+.text:004D1722 074 C0 EA 04                                shr     dl, 4           ; Shift Logical Right
+.text:004D1725 074 F6 C2 01                                test    dl, 1           ; Logical Compare
+.text:004D1728 074 74 13                                   jz      short loc_4D173D ; Jump if Zero (ZF=1)
+.text:004D1728
+.text:004D172A 074 C1 E9 0A                                shr     ecx, 0Ah        ; Shift Logical Right
+.text:004D172D 074 F6 C1 01                                test    cl, 1           ; Logical Compare
+.text:004D1730 074 75 0B                                   jnz     short loc_4D173D ; Jump if Not Zero (ZF=0)
+.text:004D1730
+.text:004D1732 074 D9 40 18                                fld     dword ptr [eax+18h] ; Load Real
+.text:004D1735 074 D8 44 24 10                             fadd    [esp+74h+var_64] ; Add Real
+.text:004D1739 074 D9 5C 24 10                             fstp    [esp+74h+var_64] ; Store Real and Pop
+.text:004D1739
+.text:004D173D
+.text:004D173D                             loc_4D173D:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+95↑j
+.text:004D173D                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+A8↑j
+.text:004D173D                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+B0↑j
+.text:004D173D 074 8B 46 04                                mov     eax, [esi+4]
+.text:004D1740 074 83 C6 04                                add     esi, 4          ; Add
+.text:004D1743 074 85 C0                                   test    eax, eax        ; Logical Compare
+.text:004D1745 074 75 C9                                   jnz     short loc_4D1710 ; Jump if Not Zero (ZF=0)
+.text:004D1745
+.text:004D1747
+.text:004D1747                             loc_4D1747:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+87↑j
+.text:004D1747 074 8D 77 04                                lea     esi, [edi+4]    ; Load Effective Address
+.text:004D174A 074 8B FE                                   mov     edi, esi
+.text:004D174C 074 8B 0F                                   mov     ecx, [edi]      ; this
+.text:004D174E 074 8B FF                                   mov     edi, edi
+.text:004D174E
+.text:004D1750
+.text:004D1750                             loc_4D1750:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+141↓j
+.text:004D1750 074 8B 41 10                                mov     eax, [ecx+10h]
+.text:004D1753 074 85 C0                                   test    eax, eax        ; Logical Compare
+.text:004D1755 074 74 62                                   jz      short loc_4D17B9 ; Jump if Zero (ZF=1)
+.text:004D1755
+.text:004D1757 074 8A 40 04                                mov     al, [eax+4]
+.text:004D175A 074 D0 E8                                   shr     al, 1           ; Shift Logical Right
+.text:004D175C 074 A8 01                                   test    al, 1           ; Logical Compare
+.text:004D175E 074 74 59                                   jz      short loc_4D17B9 ; Jump if Zero (ZF=1)
+.text:004D175E
+.text:004D1760 074 8B 51 14                                mov     edx, [ecx+14h]
+.text:004D1763 074 33 C0                                   xor     eax, eax        ; Logical Exclusive OR
+.text:004D1765 074 66 8B 42 2E                             mov     ax, [edx+2Eh]
+.text:004D1769 074 8B D0                                   mov     edx, eax
+.text:004D176B 074 C1 EA 0D                                shr     edx, 0Dh        ; Shift Logical Right
+.text:004D176E 074 F6 C2 01                                test    dl, 1           ; Logical Compare
+.text:004D1771 074 75 46                                   jnz     short loc_4D17B9 ; Jump if Not Zero (ZF=0)
+.text:004D1771
+.text:004D1773 074 C0 E8 06                                shr     al, 6           ; Shift Logical Right
+.text:004D1776 074 A8 01                                   test    al, 1           ; Logical Compare
+.text:004D1778 074 74 3F                                   jz      short loc_4D17B9 ; Jump if Zero (ZF=1)
+.text:004D1778
+.text:004D177A 074 D9 05 24 86 85 00                       fld     ds:fOne         ; 1.0f
+.text:004D1780 074 51                                      push    ecx
+.text:004D1781 078 D8 64 24 14                             fsub    [esp+78h+var_64] ; Subtract Real
+.text:004D1785 078 8D 44 24 28                             lea     eax, [esp+78h+a2] ; Load Effective Address
+.text:004D1789 078 D9 1C 24                                fstp    [esp+78h+a3]    ; a3
+.text:004D178C 078 50                                      push    eax             ; a2
+.text:004D178D 07C E8 BE E4 FF FF                          call    _ZN14CAnimBlendNode21GetCurrentTranslationER7CVectorf ; Call Procedure
+.text:004D178D
+.text:004D1792 074 D9 44 24 40                             fld     [esp+74h+var_34] ; Load Real
+.text:004D1796 074 8B 0F                                   mov     ecx, [edi]
+.text:004D1798 074 D8 44 24 28                             fadd    [esp+74h+a2.y]  ; Add Real
+.text:004D179C 074 8B 51 14                                mov     edx, [ecx+14h]
+.text:004D179F 074 8A 42 2E                                mov     al, [edx+2Eh]
+.text:004D17A2 074 C0 E8 07                                shr     al, 7           ; Shift Logical Right
+.text:004D17A5 074 D9 5C 24 40                             fstp    [esp+74h+var_34] ; Store Real and Pop
+.text:004D17A9 074 A8 01                                   test    al, 1           ; Logical Compare
+.text:004D17AB 074 74 0C                                   jz      short loc_4D17B9 ; Jump if Zero (ZF=1)
+.text:004D17AB
+.text:004D17AD 074 D9 44 24 3C                             fld     [esp+74h+var_38] ; Load Real
+.text:004D17B1 074 D8 44 24 24                             fadd    [esp+74h+a2.x]  ; Add Real
+.text:004D17B5 074 D9 5C 24 3C                             fstp    [esp+74h+var_38] ; Store Real and Pop
+.text:004D17B5
+.text:004D17B9
+.text:004D17B9                             loc_4D17B9:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+D5↑j
+.text:004D17B9                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+DE↑j
+.text:004D17B9                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+F1↑j
+.text:004D17B9                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+F8↑j ...
+.text:004D17B9 074 8B 4F 04                                mov     ecx, [edi+4]
+.text:004D17BC 074 83 C7 04                                add     edi, 4          ; Add
+.text:004D17BF 074 85 C9                                   test    ecx, ecx        ; Logical Compare
+.text:004D17C1 074 75 8D                                   jnz     short loc_4D1750 ; Jump if Not Zero (ZF=0)
+.text:004D17C1
+.text:004D17C3 074 53                                      push    ebx
+.text:004D17C3
+.text:004D17C4
+.text:004D17C4                             loc_4D17C4:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+2C8↓j
+.text:004D17C4 078 8B 0E                                   mov     ecx, [esi]
+.text:004D17C6 078 8B 41 10                                mov     eax, [ecx+10h]
+.text:004D17C9 078 85 C0                                   test    eax, eax        ; Logical Compare
+.text:004D17CB 078 0F 84 6A 01 00 00                       jz      loc_4D193B      ; Jump if Zero (ZF=1)
+.text:004D17CB
+.text:004D17D1 078 D9 05 24 86 85 00                       fld     ds:fOne         ; 1.0f
+.text:004D17D7 078 8D 54 24 68                             lea     edx, [esp+78h+var_10] ; Load Effective Address
+.text:004D17DB 078 D8 64 24 14                             fsub    [esp+78h+var_64] ; Subtract Real
+.text:004D17DF 078 8D 44 24 28                             lea     eax, [esp+78h+a2] ; Load Effective Address
+.text:004D17E3 078 D9 5C 24 18                             fstp    [esp+78h+var_60] ; Store Real and Pop
+.text:004D17E7 078 8B 7C 24 18                             mov     edi, [esp+78h+var_60]
+.text:004D17EB 078 57                                      push    edi
+.text:004D17EC 07C 52                                      push    edx
+.text:004D17ED 080 50                                      push    eax
+.text:004D17EE 084 E8 CD EE FF FF                          call    _ZN14CAnimBlendNode6UpdateER7CVectorR11CQuaternionf ; Call Procedure
+.text:004D17EE
+.text:004D17F3 078 D9 44 24 74                             fld     [esp+78h+var_4] ; Load Real
+.text:004D17F7 078 D8 4C 24 64                             fmul    [esp+78h+var_14] ; Multiply Real
+.text:004D17FB 078 8A D0                                   mov     dl, al
+.text:004D17FD 078 D9 44 24 70                             fld     [esp+78h+var_8] ; Load Real
+.text:004D1801 078 D8 4C 24 60                             fmul    [esp+78h+var_18] ; Multiply Real
+.text:004D1805 078 DE C1                                   faddp   st(1), st       ; Add Real and Pop
+.text:004D1807 078 D9 44 24 6C                             fld     [esp+78h+var_C] ; Load Real
+.text:004D180B 078 D8 4C 24 5C                             fmul    [esp+78h+var_1C] ; Multiply Real
+.text:004D180F 078 DE C1                                   faddp   st(1), st       ; Add Real and Pop
+.text:004D1811 078 D9 44 24 68                             fld     [esp+78h+var_10] ; Load Real
+.text:004D1815 078 D8 4C 24 58                             fmul    [esp+78h+var_20] ; Multiply Real
+.text:004D1819 078 DE C1                                   faddp   st(1), st       ; Add Real and Pop
+.text:004D181B 078 D8 1D 50 8B 85 00                       fcomp   ds:fZero        ; 0.0f
+.text:004D1821 078 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:004D1823 078 F6 C4 05                                test    ah, 5           ; Logical Compare
+.text:004D1826 078 7A 2E                                   jp      short loc_4D1856 ; Jump if Parity (PF=1)
+.text:004D1826
+.text:004D1828 078 D9 44 24 58                             fld     [esp+78h+var_20] ; Load Real
+.text:004D182C 078 D8 64 24 68                             fsub    [esp+78h+var_10] ; Subtract Real
+.text:004D1830 078 D9 5C 24 58                             fstp    [esp+78h+var_20] ; Store Real and Pop
+.text:004D1834 078 D9 44 24 5C                             fld     [esp+78h+var_1C] ; Load Real
+.text:004D1838 078 D8 64 24 6C                             fsub    [esp+78h+var_C] ; Subtract Real
+.text:004D183C 078 D9 5C 24 5C                             fstp    [esp+78h+var_1C] ; Store Real and Pop
+.text:004D1840 078 D9 44 24 60                             fld     [esp+78h+var_18] ; Load Real
+.text:004D1844 078 D8 64 24 70                             fsub    [esp+78h+var_8] ; Subtract Real
+.text:004D1848 078 D9 5C 24 60                             fstp    [esp+78h+var_18] ; Store Real and Pop
+.text:004D184C 078 D9 44 24 64                             fld     [esp+78h+var_14] ; Load Real
+.text:004D1850 078 D8 64 24 74                             fsub    [esp+78h+var_4] ; Subtract Real
+.text:004D1854 078 EB 2C                                   jmp     short loc_4D1882 ; Jump
+.text:004D1854
+.text:004D1856                             ; ---------------------------------------------------------------------------
+.text:004D1856
+.text:004D1856                             loc_4D1856:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+1A6↑j
+.text:004D1856 078 D9 44 24 68                             fld     [esp+78h+var_10] ; Load Real
+.text:004D185A 078 D8 44 24 58                             fadd    [esp+78h+var_20] ; Add Real
+.text:004D185E 078 D9 5C 24 58                             fstp    [esp+78h+var_20] ; Store Real and Pop
+.text:004D1862 078 D9 44 24 6C                             fld     [esp+78h+var_C] ; Load Real
+.text:004D1866 078 D8 44 24 5C                             fadd    [esp+78h+var_1C] ; Add Real
+.text:004D186A 078 D9 5C 24 5C                             fstp    [esp+78h+var_1C] ; Store Real and Pop
+.text:004D186E 078 D9 44 24 70                             fld     [esp+78h+var_8] ; Load Real
+.text:004D1872 078 D8 44 24 60                             fadd    [esp+78h+var_18] ; Add Real
+.text:004D1876 078 D9 5C 24 60                             fstp    [esp+78h+var_18] ; Store Real and Pop
+.text:004D187A 078 D9 44 24 74                             fld     [esp+78h+var_4] ; Load Real
+.text:004D187E 078 D8 44 24 64                             fadd    [esp+78h+var_14] ; Add Real
+.text:004D187E
+.text:004D1882
+.text:004D1882                             loc_4D1882:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+1D4↑j
+.text:004D1882 078 8B 0E                                   mov     ecx, [esi]      ; this
+.text:004D1884 078 D9 5C 24 64                             fstp    [esp+78h+var_14] ; Store Real and Pop
+.text:004D1888 078 8B 41 10                                mov     eax, [ecx+10h]
+.text:004D188B 078 8A 40 04                                mov     al, [eax+4]
+.text:004D188E 078 D0 E8                                   shr     al, 1           ; Shift Logical Right
+.text:004D1890 078 A8 01                                   test    al, 1           ; Logical Compare
+.text:004D1892 078 0F 84 A3 00 00 00                       jz      loc_4D193B      ; Jump if Zero (ZF=1)
+.text:004D1892
+.text:004D1898 078 8B 41 14                                mov     eax, [ecx+14h]
+.text:004D189B 078 0F B7 40 2E                             movzx   eax, word ptr [eax+2Eh] ; Move with Zero-Extend
+.text:004D189F 078 8B D8                                   mov     ebx, eax
+.text:004D18A1 078 C1 EB 0D                                shr     ebx, 0Dh        ; Shift Logical Right
+.text:004D18A4 078 F6 C3 01                                test    bl, 1           ; Logical Compare
+.text:004D18A7 078 0F 85 8E 00 00 00                       jnz     loc_4D193B      ; Jump if Not Zero (ZF=0)
+.text:004D18A7
+.text:004D18AD 078 D9 44 24 1C                             fld     [esp+78h+var_5C] ; Load Real
+.text:004D18B1 078 8A D8                                   mov     bl, al
+.text:004D18B3 078 D8 44 24 28                             fadd    [esp+78h+a2.x]  ; Add Real
+.text:004D18B7 078 C0 EB 06                                shr     bl, 6           ; Shift Logical Right
+.text:004D18BA 078 F6 C3 01                                test    bl, 1           ; Logical Compare
+.text:004D18BD 078 D9 5C 24 1C                             fstp    [esp+78h+var_5C] ; Store Real and Pop
+.text:004D18C1 078 D9 44 24 20                             fld     [esp+78h+var_58] ; Load Real
+.text:004D18C5 078 D8 44 24 2C                             fadd    [esp+78h+a2.y]  ; Add Real
+.text:004D18C9 078 D9 5C 24 20                             fstp    [esp+78h+var_58] ; Store Real and Pop
+.text:004D18CD 078 D9 44 24 30                             fld     [esp+78h+a2.z]  ; Load Real
+.text:004D18D1 078 D8 44 24 24                             fadd    [esp+78h+var_54] ; Add Real
+.text:004D18D5 078 D9 5C 24 24                             fstp    [esp+78h+var_54] ; Store Real and Pop
+.text:004D18D9 078 74 60                                   jz      short loc_4D193B ; Jump if Zero (ZF=1)
+.text:004D18D9
+.text:004D18DB 078 D9 44 24 38                             fld     [esp+78h+var_40] ; Load Real
+.text:004D18DF 078 C0 E8 07                                shr     al, 7           ; Shift Logical Right
+.text:004D18E2 078 A8 01                                   test    al, 1           ; Logical Compare
+.text:004D18E4 078 D8 44 24 2C                             fadd    [esp+78h+a2.y]  ; Add Real
+.text:004D18E8 078 D9 5C 24 38                             fstp    [esp+78h+var_40] ; Store Real and Pop
+.text:004D18EC 078 74 0C                                   jz      short loc_4D18FA ; Jump if Zero (ZF=1)
+.text:004D18EC
+.text:004D18EE 078 D9 44 24 34                             fld     [esp+78h+var_44] ; Load Real
+.text:004D18F2 078 D8 44 24 28                             fadd    [esp+78h+a2.x]  ; Add Real
+.text:004D18F6 078 D9 5C 24 34                             fstp    [esp+78h+var_44] ; Store Real and Pop
+.text:004D18F6
+.text:004D18FA
+.text:004D18FA                             loc_4D18FA:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+26C↑j
+.text:004D18FA 078 8A 5C 24 13                             mov     bl, [esp+78h+var_65]
+.text:004D18FE 078 0A DA                                   or      bl, dl          ; Logical Inclusive OR
+.text:004D1900 078 84 D2                                   test    dl, dl          ; Logical Compare
+.text:004D1902 078 88 5C 24 13                             mov     [esp+78h+var_65], bl
+.text:004D1906 078 74 33                                   jz      short loc_4D193B ; Jump if Zero (ZF=1)
+.text:004D1906
+.text:004D1908 078 57                                      push    edi             ; a3
+.text:004D1909 07C 8D 54 24 2C                             lea     edx, [esp+7Ch+a2] ; Load Effective Address
+.text:004D190D 07C 52                                      push    edx             ; a2
+.text:004D190E 080 E8 7D E4 FF FF                          call    _ZN14CAnimBlendNode17GetEndTranslationER7CVectorf ; Call Procedure
+.text:004D190E
+.text:004D1913 078 D9 44 24 50                             fld     [esp+78h+var_28] ; Load Real
+.text:004D1917 078 8B 0E                                   mov     ecx, [esi]
+.text:004D1919 078 D8 44 24 2C                             fadd    [esp+78h+a2.y]  ; Add Real
+.text:004D191D 078 8B 41 14                                mov     eax, [ecx+14h]
+.text:004D1920 078 8A 50 2E                                mov     dl, [eax+2Eh]
+.text:004D1923 078 C0 EA 07                                shr     dl, 7           ; Shift Logical Right
+.text:004D1926 078 D9 5C 24 50                             fstp    [esp+78h+var_28] ; Store Real and Pop
+.text:004D192A 078 F6 C2 01                                test    dl, 1           ; Logical Compare
+.text:004D192D 078 74 0C                                   jz      short loc_4D193B ; Jump if Zero (ZF=1)
+.text:004D192D
+.text:004D192F 078 D9 44 24 4C                             fld     [esp+78h+var_2C] ; Load Real
+.text:004D1933 078 D8 44 24 28                             fadd    [esp+78h+a2.x]  ; Add Real
+.text:004D1937 078 D9 5C 24 4C                             fstp    [esp+78h+var_2C] ; Store Real and Pop
+.text:004D1937
+.text:004D193B
+.text:004D193B                             loc_4D193B:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+14B↑j
+.text:004D193B                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+212↑j
+.text:004D193B                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+227↑j
+.text:004D193B                                                                     ; FrameUpdateCallBackSkinnedWithVelocityExtraction+259↑j ...
+.text:004D193B 078 83 C1 18                                add     ecx, 18h        ; Add
+.text:004D193E 078 89 0E                                   mov     [esi], ecx
+.text:004D1940 078 8B 46 04                                mov     eax, [esi+4]
+.text:004D1943 078 83 C6 04                                add     esi, 4          ; Add
+.text:004D1946 078 85 C0                                   test    eax, eax        ; Logical Compare
+.text:004D1948 078 0F 85 76 FE FF FF                       jnz     loc_4D17C4      ; Jump if Not Zero (ZF=0)
+.text:004D1948
+.text:004D194E 078 8B 74 24 7C                             mov     esi, [esp+78h+arg_0]
+.text:004D1952 078 F6 06 02                                test    byte ptr [esi], 2 ; Logical Compare
+.text:004D1955 078 5B                                      pop     ebx
+.text:004D1956 074 75 25                                   jnz     short loc_4D197D ; Jump if Not Zero (ZF=0)
+.text:004D1956
+.text:004D1958 074 8D 4C 24 54                             lea     ecx, [esp+74h+var_20] ; Load Effective Address
+.text:004D195C 074 E8 AF FC FF FF                          call    _ZN11CQuaternion9NormaliseEv ; Call Procedure
+.text:004D195C
+.text:004D1961 074 8B 44 24 54                             mov     eax, [esp+74h+var_20]
+.text:004D1965 074 8B 4C 24 58                             mov     ecx, [esp+74h+var_1C]
+.text:004D1969 074 8B 54 24 5C                             mov     edx, [esp+74h+var_18]
+.text:004D196D 074 89 45 00                                mov     [ebp+0], eax
+.text:004D1970 074 8B 44 24 60                             mov     eax, [esp+74h+var_14]
+.text:004D1974 074 89 4D 04                                mov     [ebp+4], ecx
+.text:004D1977 074 89 55 08                                mov     [ebp+8], edx
+.text:004D197A 074 89 45 0C                                mov     [ebp+0Ch], eax
+.text:004D197A
+.text:004D197D
+.text:004D197D                             loc_4D197D:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+2D6↑j
+.text:004D197D 074 F6 06 04                                test    byte ptr [esi], 4 ; Logical Compare
+.text:004D1980 074 0F 85 BE 00 00 00                       jnz     loc_4D1A44      ; Jump if Not Zero (ZF=0)
+.text:004D1980
+.text:004D1986 074 D9 44 24 30                             fld     [esp+74h+var_44] ; Load Real
+.text:004D198A 074 A1 0C EA B4 00                          mov     eax, gpAnimBlendClump
+.text:004D198F 074 D8 64 24 3C                             fsub    [esp+74h+var_38] ; Subtract Real
+.text:004D1993 074 8B 48 0C                                mov     ecx, [eax+0Ch]
+.text:004D1996 074 D9 19                                   fstp    dword ptr [ecx] ; Store Real and Pop
+.text:004D1998 074 8A 4C 24 0F                             mov     cl, [esp+74h+var_65]
+.text:004D199C 074 84 C9                                   test    cl, cl          ; Logical Compare
+.text:004D199E 074 D9 44 24 34                             fld     [esp+74h+var_40] ; Load Real
+.text:004D19A2 074 D8 64 24 40                             fsub    [esp+74h+var_34] ; Subtract Real
+.text:004D19A6 074 8B 50 0C                                mov     edx, [eax+0Ch]
+.text:004D19A9 074 D9 5A 04                                fstp    dword ptr [edx+4] ; Store Real and Pop
+.text:004D19AC 074 74 18                                   jz      short loc_4D19C6 ; Jump if Zero (ZF=1)
+.text:004D19AC
+.text:004D19AE 074 8B 48 0C                                mov     ecx, [eax+0Ch]
+.text:004D19B1 074 D9 44 24 48                             fld     [esp+74h+var_2C] ; Load Real
+.text:004D19B5 074 D8 01                                   fadd    dword ptr [ecx] ; Add Real
+.text:004D19B7 074 D9 19                                   fstp    dword ptr [ecx] ; Store Real and Pop
+.text:004D19B9 074 8B 40 0C                                mov     eax, [eax+0Ch]
+.text:004D19BC 074 D9 44 24 4C                             fld     [esp+74h+var_28] ; Load Real
+.text:004D19C0 074 D8 40 04                                fadd    dword ptr [eax+4] ; Add Real
+.text:004D19C3 074 D9 58 04                                fstp    dword ptr [eax+4] ; Store Real and Pop
+.text:004D19C3
+.text:004D19C6
+.text:004D19C6                             loc_4D19C6:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+32C↑j
+.text:004D19C6 074 D9 44 24 18                             fld     [esp+74h+var_5C] ; Load Real
+.text:004D19CA 074 8D 4D 10                                lea     ecx, [ebp+10h]  ; Load Effective Address
+.text:004D19CD 074 D8 64 24 30                             fsub    [esp+74h+var_44] ; Subtract Real
+.text:004D19D1 074 8B C1                                   mov     eax, ecx
+.text:004D19D3 074 D9 5C 24 18                             fstp    [esp+74h+var_5C] ; Store Real and Pop
+.text:004D19D7 074 8B 54 24 18                             mov     edx, [esp+74h+var_5C]
+.text:004D19DB 074 D9 44 24 1C                             fld     [esp+74h+var_58] ; Load Real
+.text:004D19DF 074 89 10                                   mov     [eax], edx
+.text:004D19E1 074 D8 64 24 34                             fsub    [esp+74h+var_40] ; Subtract Real
+.text:004D19E5 074 D9 5C 24 1C                             fstp    [esp+74h+var_58] ; Store Real and Pop
+.text:004D19E9 074 8B 54 24 1C                             mov     edx, [esp+74h+var_58]
+.text:004D19ED 074 89 50 04                                mov     [eax+4], edx
+.text:004D19F0 074 8B 54 24 20                             mov     edx, [esp+74h+var_54]
+.text:004D19F4 074 89 50 08                                mov     [eax+8], edx
+.text:004D19F7 074 D9 45 18                                fld     dword ptr [ebp+18h] ; Load Real
+.text:004D19FA 074 D8 1D 9C 8C 85 00                       fcomp   ds:flt_858C9C   ; Compare Real and Pop
+.text:004D1A00 074 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:004D1A02 074 F6 C4 05                                test    ah, 5           ; Logical Compare
+.text:004D1A05 074 7B 2D                                   jnp     short loc_4D1A34 ; Jump if Not Parity (PF=0)
+.text:004D1A05
+.text:004D1A07 074 D9 45 18                                fld     dword ptr [ebp+18h] ; Load Real
+.text:004D1A0A 074 D8 1D 0C 8F 85 00                       fcomp   ds:flt_858F0C   ; Compare Real and Pop
+.text:004D1A10 074 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:004D1A12 074 F6 C4 05                                test    ah, 5           ; Logical Compare
+.text:004D1A15 074 7A 14                                   jp      short loc_4D1A2B ; Jump if Parity (PF=1)
+.text:004D1A15
+.text:004D1A17 074 D9 45 18                                fld     dword ptr [ebp+18h] ; Load Real
+.text:004D1A1A 074 D8 0D A0 8F 85 00                       fmul    ds:flt_858FA0   ; Multiply Real
+.text:004D1A20 074 D8 05 A0 8C 85 00                       fadd    ds:flt_858CA0   ; 2.0f
+.text:004D1A26 074 D8 4E 0C                                fmul    dword ptr [esi+0Ch] ; Multiply Real
+.text:004D1A29 074 EB 03                                   jmp     short loc_4D1A2E ; Jump
+.text:004D1A29
+.text:004D1A2B                             ; ---------------------------------------------------------------------------
+.text:004D1A2B
+.text:004D1A2B                             loc_4D1A2B:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+395↑j
+.text:004D1A2B 074 D9 46 0C                                fld     dword ptr [esi+0Ch] ; Load Real
+.text:004D1A2B
+.text:004D1A2E
+.text:004D1A2E                             loc_4D1A2E:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+3A9↑j
+.text:004D1A2E 074 D8 45 18                                fadd    dword ptr [ebp+18h] ; Add Real
+.text:004D1A31 074 D9 5D 18                                fstp    dword ptr [ebp+18h] ; Store Real and Pop
+.text:004D1A31
+.text:004D1A34
+.text:004D1A34                             loc_4D1A34:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+385↑j
+.text:004D1A34 074 D9 46 04                                fld     dword ptr [esi+4] ; Load Real
+.text:004D1A37 074 D8 01                                   fadd    dword ptr [ecx] ; Add Real
+.text:004D1A39 074 D9 19                                   fstp    dword ptr [ecx] ; Store Real and Pop
+.text:004D1A3B 074 D9 46 08                                fld     dword ptr [esi+8] ; Load Real
+.text:004D1A3E 074 D8 45 14                                fadd    dword ptr [ebp+14h] ; Add Real
+.text:004D1A41 074 D9 5D 14                                fstp    dword ptr [ebp+14h] ; Store Real and Pop
+.text:004D1A41
+.text:004D1A44
+.text:004D1A44                             loc_4D1A44:                             ; CODE XREF: FrameUpdateCallBackSkinnedWithVelocityExtraction+300↑j
+.text:004D1A44 074 5F                                      pop     edi
+.text:004D1A45 070 5E                                      pop     esi
+.text:004D1A46 06C 5D                                      pop     ebp
+.text:004D1A47 068 83 C4 68                                add     esp, 68h        ; Add
+.text:004D1A4A 000 C3                                      retn                    ; Return Near from Procedure
+.text:004D1A4A
+.text:004D1A4A                             FrameUpdateCallBackSkinnedWithVelocityExtraction endp
+.text:004D1A4A
+.text:004D1A4A                             ; ---------------------------------------------------------------------------

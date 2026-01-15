@@ -66,6 +66,9 @@ CTaskSimpleGrabbed::CTaskSimpleGrabbed(CPed* pGrabber, CTaskSimpleGrab* pGrabber
     
     // Start position not set yet
     m_bStartPositionSet = false;
+    
+    // Default: play grab animation, not idle
+    m_bStartWithIdle = false;
 }
 
 // ============================================================================
@@ -280,6 +283,11 @@ void CTaskSimpleGrabbed::SetAnimationSkip(float skip)
     m_fAnimationSkip = skip;
 }
 
+void CTaskSimpleGrabbed::SetStartWithIdle(bool startWithIdle)
+{
+    m_bStartWithIdle = startWithIdle;
+}
+
 // ============================================================================
 // Internal Methods
 // ============================================================================
@@ -326,7 +334,10 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
         return;
     }
 
-    CAnimBlendHierarchy* hier = CAnimManager::GetAnimation(ANIM_GRABBED, animBlock);
+    // Choose animation based on start mode
+    const char* animName = m_bStartWithIdle ? ANIM_GRABBED_IDLE : ANIM_GRABBED;
+    
+    CAnimBlendHierarchy* hier = CAnimManager::GetAnimation(animName, animBlock);
     if (!hier)
     {
         return;
@@ -340,14 +351,20 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
         blendDelta = 16.0f;
     }
 
+    // Use ANIMATION_PARTIAL (0x10) for normal grab, add ANIMATION_LOOPED (0x2) for idle
+    int animFlags = m_bStartWithIdle ? (0x10 | 0x2) : 0x10;  // ANIMATION_PARTIAL | ANIMATION_LOOPED
+
     // Blend in with high priority to override any other animations
-    m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, hier, 0x10, blendDelta);
+    m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, hier, animFlags, blendDelta);
     
     if (m_pAnim)
     {
-        // Skip animation forward to sync with grabber
-        float skipTime = m_fAnimationSkip * m_pAnim->m_pHierarchy->m_fTotalTime;
-        m_pAnim->m_fCurrentTime = skipTime;
+        // Only skip animation for non-idle (idle starts from beginning and loops)
+        if (!m_bStartWithIdle)
+        {
+            float skipTime = m_fAnimationSkip * m_pAnim->m_pHierarchy->m_fTotalTime;
+            m_pAnim->m_fCurrentTime = skipTime;
+        }
         
         // Use SetDeleteCallback - fires when anim is deleted for ANY reason
         // This is safer for victim since animation can be interrupted by combat/damage
