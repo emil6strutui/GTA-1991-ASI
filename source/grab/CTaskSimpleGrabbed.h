@@ -30,19 +30,30 @@ public:
     // Animation names (must match IFP)
     static constexpr const char* ANIM_BLOCK_NAME = "fight_a";
     static constexpr const char* ANIM_GRABBED = "Fight_grabbed";
+    
+    // How much forward distance the grab animation covers (root motion)
+    static constexpr float ANIM_FORWARD_DISTANCE = 0.1f;
 
 private:
     // ========== Members ==========
     eGrabbedState m_state;
     CPed* m_pGrabber;                       // The ped grabbing us
+    CPed* m_pVictimPed;                     // Ourselves (for collision restore in destructor)
     CTaskSimpleGrab* m_pGrabberTask;        // Grabber's task (for coordination)
     CAnimBlendAssociation* m_pAnim;         // Current animation
     bool m_bAnimsReferenced;                // Whether we've added anim block ref
+    bool m_bCollisionDisabled;              // Whether we've disabled collision
     
     // Position offset from grabber (set when attached)
     float m_fOffsetForward;
     float m_fOffsetRight;
     float m_fOffsetZ;
+    
+    // Animation skip (0-1, synced with grabber's skip based on distance)
+    float m_fAnimationSkip;
+    
+    // Whether we've set the initial start position
+    bool m_bStartPositionSet;
 
 public:
     // ========== Constructor/Destructor ==========
@@ -70,6 +81,9 @@ public:
     
     // Set position offset from grabber
     void SetOffset(float forward, float right, float z);
+    
+    // Set animation skip amount (synced with grabber)
+    void SetAnimationSkip(float skip);
 
 private:
     // ========== Internal Methods ==========

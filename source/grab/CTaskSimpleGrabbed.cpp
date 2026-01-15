@@ -50,14 +50,22 @@ CTaskSimpleGrabbed::CTaskSimpleGrabbed(CPed* pGrabber, CTaskSimpleGrab* pGrabber
     m_pParentTask = nullptr;
     m_state = eGrabbedState::GRABBED;
     m_pGrabber = pGrabber;
+    m_pVictimPed = nullptr;  // Will be set in first ProcessPed call
     m_pGrabberTask = pGrabberTask;
     m_pAnim = nullptr;
     m_bAnimsReferenced = false;
+    m_bCollisionDisabled = false;
     
     // Default offset (will be set by grabber)
     m_fOffsetForward = 0.7f;
     m_fOffsetRight = 0.0f;
     m_fOffsetZ = 0.0f;
+    
+    // Animation skip (synced with grabber)
+    m_fAnimationSkip = 0.0f;
+    
+    // Start position not set yet
+    m_bStartPositionSet = false;
 }
 
 // ============================================================================
@@ -65,6 +73,13 @@ CTaskSimpleGrabbed::CTaskSimpleGrabbed(CPed* pGrabber, CTaskSimpleGrab* pGrabber
 // ============================================================================
 CTaskSimpleGrabbed::~CTaskSimpleGrabbed()
 {
+    // Restore collision if we disabled it
+    if (m_bCollisionDisabled && m_pVictimPed)
+    {
+        m_pVictimPed->bCollidable = true;
+        m_bCollisionDisabled = false;
+    }
+
     // CRITICAL: Detach callback BEFORE blend out to prevent crash
     // Must use NoOpAnimCallback, NOT nullptr (game always calls the callback)
     if (m_pAnim)
@@ -123,6 +138,13 @@ void CTaskSimpleGrabbed::StopTimer(CEvent* event)
 
 bool CTaskSimpleGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
+    // Restore collision
+    if (m_bCollisionDisabled && ped)
+    {
+        ped->bCollidable = true;
+        m_bCollisionDisabled = false;
+    }
+
     // CRITICAL: Detach callback BEFORE blend out to prevent crash
     if (m_pAnim)
     {
@@ -152,6 +174,19 @@ bool CTaskSimpleGrabbed::ProcessPed(CPed* ped)
     if (m_state == eGrabbedState::FINISHED)
     {
         return true; // Task complete
+    }
+
+    // First frame: save ped pointer and disable collision
+    if (!m_pVictimPed && ped)
+    {
+        m_pVictimPed = ped;
+        
+        // Disable collision so victim doesn't interfere with grab
+        if (ped->bCollidable)
+        {
+            ped->bCollidable = false;
+            m_bCollisionDisabled = true;
+        }
     }
 
     // Check if released by grabber
@@ -222,6 +257,13 @@ bool CTaskSimpleGrabbed::SetPedPosition(CPed* ped)
 
 void CTaskSimpleGrabbed::OnReleased()
 {
+    // Restore collision
+    if (m_bCollisionDisabled && m_pVictimPed)
+    {
+        m_pVictimPed->bCollidable = true;
+        m_bCollisionDisabled = false;
+    }
+
     m_state = eGrabbedState::RELEASED;
     m_pGrabberTask = nullptr;
 }
@@ -231,6 +273,11 @@ void CTaskSimpleGrabbed::SetOffset(float forward, float right, float z)
     m_fOffsetForward = forward;
     m_fOffsetRight = right;
     m_fOffsetZ = z;
+}
+
+void CTaskSimpleGrabbed::SetAnimationSkip(float skip)
+{
+    m_fAnimationSkip = skip;
 }
 
 // ============================================================================
@@ -285,13 +332,25 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
         return;
     }
 
+    // Calculate blend delta based on skip amount
+    // Higher skip = faster blend (snappier for close grabs)
+    float blendDelta = 8.0f;
+    if (m_fAnimationSkip > 0.4f)
+    {
+        blendDelta = 16.0f;
+    }
+
     // Blend in with high priority to override any other animations
-    m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, hier, 0x10, 32.0f);
+    m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, hier, 0x10, blendDelta);
     
-    // Use SetDeleteCallback - fires when anim is deleted for ANY reason
-    // This is safer for victim since animation can be interrupted by combat/damage
     if (m_pAnim)
     {
+        // Skip animation forward to sync with grabber
+        float skipTime = m_fAnimationSkip * m_pAnim->m_pHierarchy->m_fTotalTime;
+        m_pAnim->m_fCurrentTime = skipTime;
+        
+        // Use SetDeleteCallback - fires when anim is deleted for ANY reason
+        // This is safer for victim since animation can be interrupted by combat/damage
         m_pAnim->SetDeleteCallback(OnAnimDeleted, this);
     }
 }
@@ -306,27 +365,62 @@ void CTaskSimpleGrabbed::SyncPositionToGrabber(CPed* ped)
     // Get grabber position and heading
     CVector grabberPos = m_pGrabber->GetPosition();
     float grabberHeading = m_pGrabber->m_fCurrentRotation;
-
-    // Calculate offset position
-    // Forward is in the direction grabber is facing
+    
+    // Calculate direction vectors
     float sinH = sinf(grabberHeading);
     float cosH = cosf(grabberHeading);
-
-    CVector newPos;
-    newPos.x = grabberPos.x - sinH * m_fOffsetForward + cosH * m_fOffsetRight;
-    newPos.y = grabberPos.y + cosH * m_fOffsetForward + sinH * m_fOffsetRight;
-    newPos.z = grabberPos.z + m_fOffsetZ;
-
-    // Set victim position
-    ped->SetPosn(newPos);
-
-    // Face the grabber (opposite direction)
+    
+    // Always face the grabber (opposite direction)
     float victimHeading = grabberHeading + 3.14159f; // 180 degrees opposite
     while (victimHeading > 3.14159f) victimHeading -= 6.28318f;
     while (victimHeading < -3.14159f) victimHeading += 6.28318f;
-
+    
     ped->m_fCurrentRotation = victimHeading;
     ped->m_fAimingRotation = victimHeading;
+
+    // Calculate final grab position (where victim ends up when fully grabbed)
+    CVector finalPos;
+    finalPos.x = grabberPos.x - sinH * m_fOffsetForward + cosH * m_fOffsetRight;
+    finalPos.y = grabberPos.y + cosH * m_fOffsetForward + sinH * m_fOffsetRight;
+    finalPos.z = grabberPos.z + m_fOffsetZ;
+
+    // FIRST FRAME: Set the start position based on animation skip
+    // The animation has root motion that moves victim forward (towards grabber)
+    // So we place victim at a distance where the remaining animation will bring them to finalPos
+    if (!m_bStartPositionSet)
+    {
+        m_bStartPositionSet = true;
+        
+        // Calculate how much animation movement remains
+        // remaining_ratio = 1.0 - skip (if skip=0.6, only 40% of movement left)
+        float remainingRatio = 1.0f - m_fAnimationSkip;
+        float remainingDistance = remainingRatio * ANIM_FORWARD_DISTANCE;
+        
+        // Start position = final position + remaining distance (away from grabber)
+        // "Away from grabber" is in the direction the grabber is facing
+        CVector startPos;
+        startPos.x = finalPos.x - sinH * remainingDistance;
+        startPos.y = finalPos.y + cosH * remainingDistance;
+        startPos.z = finalPos.z;
+        
+        ped->SetPosn(startPos);
+        return;
+    }
+
+    // SUBSEQUENT FRAMES: Check if animation is complete
+    float animProgress = 1.0f; // Default to complete if no anim
+    if (m_pAnim && m_pAnim->m_pHierarchy && m_pAnim->m_pHierarchy->m_fTotalTime > 0.0f)
+    {
+        animProgress = m_pAnim->m_fCurrentTime / m_pAnim->m_pHierarchy->m_fTotalTime;
+    }
+    
+    // Once animation is complete (or nearly complete), lock to final position
+    // This ensures perfect positioning at the end
+    if (animProgress >= 0.95f)
+    {
+        ped->SetPosn(finalPos);
+    }
+    // Otherwise: let animation root motion handle movement
 }
 
 // ============================================================================
