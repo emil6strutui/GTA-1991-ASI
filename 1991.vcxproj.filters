@@ -30,6 +30,10 @@
     <ClCompile Include="source\keybindings\CKeybindings.cpp">
       <Filter>source\keybindings</Filter>
     </ClCompile>
+    <ClCompile Include="source\Markers.cpp" />
+    <ClCompile Include="source\grab\CGrabSystem.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleBeGrabbed.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrab.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\hud\CHud1991.h">
@@ -53,5 +57,9 @@
     <ClInclude Include="source\keybindings\CKeybindingsConfig.h">
       <Filter>source\keybindings</Filter>
     </ClInclude>
+    <ClInclude Include="source\GInputAPI.h" />
+    <ClInclude Include="source\Markers.h" />
+    <ClInclude Include="source\grab\CGrabSystem.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrab.h" />
   </ItemGroup>
 </Project>

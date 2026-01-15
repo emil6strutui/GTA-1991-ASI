@@ -4,7 +4,7 @@
 #include "CStoriesSprinting.h"
 #include "ButtonIcons.h"
 #include "CKeybindings.h"
-#include "CGrabSystem.h"
+#include "grab/CGrabSystem.h"
 
 using namespace plugin;
 

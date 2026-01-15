@@ -131,6 +131,8 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="source\ButtonIcons.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabbed.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrab.cpp" />
     <ClCompile Include="source\Main.cpp" />
     <ClCompile Include="source\hud\CHud1991.cpp" />
     <ClCompile Include="source\Markers.cpp" />
@@ -150,6 +152,7 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     <ClInclude Include="source\keybindings\CKeybindingsConfig.h" />
     <ClInclude Include="source\grab\CGrabSystem.h" />
     <ClInclude Include="source\grab\CTaskSimpleGrab.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabbed.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
