@@ -50,12 +50,14 @@ CTaskSimpleGrab::CTaskSimpleGrab()
 {
     m_pParentTask = nullptr;
     m_state = eGrabState::INIT;
+    m_currentAction = eGrabAction::NONE;
     m_pGrabber = nullptr;
     m_pVictim = nullptr;
     m_pVictimTask = nullptr;
     m_pAnim = nullptr;
     m_bAnimsReferenced = false;
     m_fGrabDistance = 0.0f;
+    m_pLineUpUtility = nullptr;
 }
 
 // ============================================================================
@@ -75,15 +77,10 @@ CTaskSimpleGrab::~CTaskSimpleGrab()
         m_pVictim->m_pEntityIgnoredCollision = nullptr;
     }
 
-    // CRITICAL: Detach callback BEFORE blending out to prevent callback to destroyed object
-    if (m_pAnim)
-    {
-        m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
-        m_pAnim->m_fBlendDelta = -4.0f;
-        m_pAnim = nullptr;
-    }
-
-    // Release animation reference if we have one
+    // R* pattern for custom animation blocks (see CTaskSimpleGangDriveBy):
+    // 1. Release block ref FIRST
+    // 2. Then detach callback - NO blend delta!
+    
     if (m_bAnimsReferenced)
     {
         int blockIndex = CAnimManager::GetAnimationBlockIndex(ANIM_BLOCK_NAME);
@@ -91,6 +88,13 @@ CTaskSimpleGrab::~CTaskSimpleGrab()
         {
             CAnimManager::RemoveAnimBlockRef(blockIndex);
         }
+        m_bAnimsReferenced = false;
+    }
+
+    if (m_pAnim)
+    {
+        m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
+        // NO blend delta - animation continues and cleans itself up
     }
 
     // Notify victim task that we're gone
@@ -98,6 +102,13 @@ CTaskSimpleGrab::~CTaskSimpleGrab()
     {
         m_pVictimTask->OnReleased();
         m_pVictimTask = nullptr;
+    }
+    
+    // Clean up line-up utility
+    if (m_pLineUpUtility)
+    {
+        delete m_pLineUpUtility;
+        m_pLineUpUtility = nullptr;
     }
 }
 
@@ -142,10 +153,10 @@ bool CTaskSimpleGrab::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* 
         m_pVictim->m_pEntityIgnoredCollision = nullptr;
     }
 
+    // R* pattern for custom animation blocks: just detach callback, NO blend delta
     if (m_pAnim)
     {
         m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
-        m_pAnim->m_fBlendDelta = -8.0f;
         m_pAnim = nullptr;
     }
 
@@ -242,9 +253,20 @@ bool CTaskSimpleGrab::ProcessPed(CPed* ped)
     // ========== HOLDING STATE: Holding victim, waiting for input ==========
     if (m_state == eGrabState::HOLDING)
     {
-        // TODO: Check for player input (attack, release, etc.)
-        // TODO: Play grab idle animation
-        // For now, just continue holding
+        if (IsAttackPressed())
+        {
+            StartAction(eGrabAction::JAB);
+        }
+        return false;
+    }
+
+    // ========== ACTION STATE: Performing an action (jab, throw, etc.) ==========
+    if (m_state == eGrabState::ACTION)
+    {
+        // Lock rotation during action
+        ped->m_fAimingRotation = ped->m_fCurrentRotation;
+        
+        // Animation finish is handled by OnActionAnimFinish callback
         return false;
     }
 
@@ -254,6 +276,7 @@ bool CTaskSimpleGrab::ProcessPed(CPed* ped)
         if (!m_pAnim || m_pAnim->m_fBlendAmount <= 0.0f)
         {
             m_pAnim = nullptr;
+            m_pGrabber = nullptr;
             m_state = eGrabState::FINISHED;
             return true;
         }
@@ -265,6 +288,15 @@ bool CTaskSimpleGrab::ProcessPed(CPed* ped)
 
 bool CTaskSimpleGrab::SetPedPosition(CPed* ped)
 {
+    // We don't control the grabber's position - only the victim's
+    // The victim's position is controlled by CTaskSimpleGrabbed::SetPedPosition
+    // via the line-up utility we create
+    
+    // However, during grab animation we want to prevent the grabber from moving
+    // based on animation root motion. We achieve this by returning false and
+    // letting ProcessPed lock the rotation.
+    
+    // Return false to let the game handle grabber position normally
     return false;
 }
 
@@ -407,6 +439,33 @@ float CTaskSimpleGrab::CalculateAnimSkip(float distance) const
     return skipAmount;
 }
 
+void CTaskSimpleGrab::CreateLineUpUtility(float distance)
+{
+    // Clean up existing utility if any
+    if (m_pLineUpUtility)
+    {
+        delete m_pLineUpUtility;
+        m_pLineUpUtility = nullptr;
+    }
+    
+    // Calculate start and end offsets in local space (relative to grabber)
+    // Local space: X = right, Y = forward, Z = up
+    
+    // Start offset: Where victim starts (further away based on distance)
+    // The victim starts at the actual distance from grabber
+    CVector startOffset(0.0f, distance, 0.0f);
+    
+    // End offset: Where victim ends up when fully grabbed (holding position)
+    CVector endOffset(0.0f, VICTIM_OFFSET_FORWARD, VICTIM_OFFSET_Z);
+    
+    // Create the utility with reach end progress matching our animation phase
+    m_pLineUpUtility = new CTaskUtilityLineUpPedWithPed(
+        startOffset,
+        endOffset,
+        REACH_END_PROGRESS  // Position locks at this animation progress
+    );
+}
+
 void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float distance)
 {
     if (!grabber || !victim || !grabber->m_pRwClump || !victim->m_pRwClump)
@@ -423,26 +482,9 @@ void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float dis
     grabber->m_pEntityIgnoredCollision = victim;
     victim->m_pEntityIgnoredCollision = grabber;
 
-    // ========== 2. POSITION AND ROTATE VICTIM ==========
-    // Get grabber's forward direction
-    float grabberHeading = grabber->m_fCurrentRotation;
-    float forwardX = -sin(grabberHeading);
-    float forwardY = cos(grabberHeading);
-    
-    // Place victim in front of grabber at grab range distance
-    // (victim's root motion will pull them toward grabber)
-    CVector grabberPos = grabber->GetPosition();
-    CVector victimPos;
-    victimPos.x = grabberPos.x + forwardX * distance;
-    victimPos.y = grabberPos.y + forwardY * distance;
-    victimPos.z = grabberPos.z;  // Same Z level
-    
-    victim->SetPosn(victimPos);
-    
-    // Rotate victim to face grabber (opposite direction)
-    float victimHeading = grabberHeading + 3.14159f;  // Face opposite direction (toward grabber)
-    victim->m_fCurrentRotation = victimHeading;
-    victim->m_fAimingRotation = victimHeading;
+    // ========== 2. CREATE LINE-UP UTILITY ==========
+    // This handles animation-synced positioning of the victim
+    CreateLineUpUtility(distance);
 
     // ========== 3. GET ANIMATION BLOCK ==========
     CAnimBlock* animBlock = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME);
@@ -459,39 +501,55 @@ void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float dis
     if (grabHier)
     {
         // Use high blend delta for fast blend-in
-        float blendDelta = 8.0f;
+        // Very close = faster blend (snappier)
+        float blendDelta = (skipAmount > 0.4f) ? 16.0f : 8.0f;
         
-        // If very close, use even faster blend (more snappy)
-        if (skipAmount > 0.4f)
-        {
-            blendDelta = 16.0f;
-        }
+        // Animation flags:
+        // - NOT using ANIMATION_PARTIAL (0x10) - this is a full-body animation
+        // - ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
+        // - No velocity extraction needed for grabber
+        const int animFlags = 0x04;  // ANIMATION_IS_BLEND_AUTO_REMOVE
         
-        // ANIMATION_PARTIAL (0x10) - required for proper blend-in path
-        // We'll lock rotation manually in ProcessPed
-        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, grabHier, ANIMATION_PARTIAL, blendDelta);
+        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, grabHier, animFlags, blendDelta);
         
         if (m_pAnim)
         {
+            // Make animation reference its own block (R* pattern)
+            // This ensures block stays loaded while animation is playing
+            m_pAnim->ReferenceAnimBlock();
+            
             // Skip animation forward based on distance
-            float skipTime = skipAmount * m_pAnim->m_pHierarchy->m_fTotalTime;
-            m_pAnim->m_fCurrentTime = skipTime;
+            // IMPORTANT: Use SetCurrentTime() to properly update blend node keyframe state
+            if (skipAmount > 0.0f && m_pAnim->m_pHierarchy)
+            {
+                float skipTime = skipAmount * m_pAnim->m_pHierarchy->m_fTotalTime;
+                m_pAnim->SetCurrentTime(skipTime);
+            }
             
             // Set finish callback
             m_pAnim->SetFinishCallback(OnAnimFinish, this);
         }
     }
 
-    // ========== 5. CREATE VICTIM TASK AND START VICTIM ANIMATION ==========
-    m_pVictimTask = new CTaskSimpleGrabbed(grabber, this);
-    m_pVictimTask->SetOffset(VICTIM_OFFSET_FORWARD, 0.0f, VICTIM_OFFSET_Z);
+    // ========== 5. CREATE VICTIM TASK ==========
+    // Check if victim has valid intelligence (some ped types may not)
+    if (!victim->m_pIntelligence)
+    {
+        // Can't assign task to victim without intelligence
+        return;
+    }
     
-    // Pass the skip amount to the victim task so it can sync
+    m_pVictimTask = new CTaskSimpleGrabbed(grabber, this);
+    
+    // Pass the line-up utility to the victim task for position synchronization
+    m_pVictimTask->SetLineUpUtility(m_pLineUpUtility);
+    
+    // Pass the skip amount to the victim task so it can sync its animation
     m_pVictimTask->SetAnimationSkip(skipAmount);
 
     // Assign to victim's PHYSICAL_RESPONSE slot (highest priority)
     CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
-    taskMgr->SetTask((CTask*)m_pVictimTask, TASK_PRIMARY_PHYSICAL_RESPONSE, false);
+    taskMgr->SetTask(m_pVictimTask, TASK_PRIMARY_PHYSICAL_RESPONSE, false);
 }
 
 void CTaskSimpleGrab::StartGrabNoVictim(CPed* grabber)
@@ -500,6 +558,8 @@ void CTaskSimpleGrab::StartGrabNoVictim(CPed* grabber)
     {
         return;
     }
+
+    m_pGrabber = grabber;
 
     CAnimBlock* animBlock = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME);
     if (!animBlock)
@@ -510,11 +570,18 @@ void CTaskSimpleGrab::StartGrabNoVictim(CPed* grabber)
     CAnimBlendHierarchy* grabHier = CAnimManager::GetAnimation(ANIM_GRAB, animBlock);
     if (grabHier)
     {
-        // ANIMATION_PARTIAL (0x10) - required for proper blend-in path
-        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, grabHier, ANIMATION_PARTIAL, 8.0f);
+        // Animation flags:
+        // - NOT using ANIMATION_PARTIAL - this is a full-body animation
+        // - ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
+        const int animFlags = 0x04;  // ANIMATION_IS_BLEND_AUTO_REMOVE
+        
+        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, grabHier, ANIMATION_UNLOCK_LAST_FRAME, 8.0f);
         
         if (m_pAnim)
         {
+            // Make animation reference its own block (R* pattern)
+            m_pAnim->ReferenceAnimBlock();
+            
             // No callback needed - we'll abort at 40% manually
             m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
         }
@@ -523,10 +590,21 @@ void CTaskSimpleGrab::StartGrabNoVictim(CPed* grabber)
 
 void CTaskSimpleGrab::AbortGrab()
 {
+    // R* pattern for custom animation blocks: just detach callback, NO blend delta
     if (m_pAnim)
     {
+        if (m_pGrabber && m_pGrabber->m_pRwClump)
+        {
+            CAnimManager::BlendAnimation(
+                m_pGrabber->m_pRwClump,
+                m_pGrabber->m_nAnimGroup,  // Usually ANIM_GROUP_DEFAULT or ped's anim group
+                ANIM_DEFAULT_IDLE_STANCE,
+                1000.0f  // Positive blend delta for blend-in speed
+            );
+        }
+
         m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
-        m_pAnim->m_fBlendDelta = -8.0f; // Fast blend out
+        m_pAnim = nullptr;
     }
 
     m_state = eGrabState::ABORTING;
@@ -546,11 +624,10 @@ void CTaskSimpleGrab::OnVictimLost()
 
 void CTaskSimpleGrab::ReleaseVictim()
 {
-    // Blend out current animation
+    // R* pattern for custom animation blocks: just detach callback, NO blend delta
     if (m_pAnim)
     {
         m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
-        m_pAnim->m_fBlendDelta = -4.0f;
         m_pAnim = nullptr;
     }
 
@@ -591,30 +668,27 @@ void CTaskSimpleGrab::StartHoldingImmediate(CPed* grabber, CPed* victim)
     grabber->m_pEntityIgnoredCollision = victim;
     victim->m_pEntityIgnoredCollision = grabber;
 
-    // ========== 2. POSITION VICTIM AT FINAL HOLDING POSITION ==========
-    float grabberHeading = grabber->m_fCurrentRotation;
-    float forwardX = -sin(grabberHeading);
-    float forwardY = cos(grabberHeading);
-    
-    CVector grabberPos = grabber->GetPosition();
-    CVector victimPos;
-    victimPos.x = grabberPos.x + forwardX * VICTIM_OFFSET_FORWARD;
-    victimPos.y = grabberPos.y + forwardY * VICTIM_OFFSET_FORWARD;
-    victimPos.z = grabberPos.z;
-    
-    victim->SetPosn(victimPos);
-    
-    // Face victim toward grabber
-    float victimHeading = grabberHeading + 3.14159f;
-    victim->m_fCurrentRotation = victimHeading;
-    victim->m_fAimingRotation = victimHeading;
+    // ========== 2. CREATE LINE-UP UTILITY (already at end position) ==========
+    // For immediate hold, start and end are the same (no interpolation needed)
+    CreateLineUpUtility(0.0f);  // Distance 0 means already at holding position
+    if (m_pLineUpUtility)
+    {
+        m_pLineUpUtility->LockPosition();  // Lock to end position immediately
+    }
 
     // ========== 3. START IDLE ANIMATIONS ==========
     StartIdleAnimations(grabber);
 
     // ========== 4. CREATE VICTIM TASK ==========
+    // Check if victim has valid intelligence (some ped types may not)
+    if (!victim->m_pIntelligence)
+    {
+        // Can't assign task to victim without intelligence
+        return;
+    }
+    
     m_pVictimTask = new CTaskSimpleGrabbed(grabber, this);
-    m_pVictimTask->SetOffset(VICTIM_OFFSET_FORWARD, 0.0f, VICTIM_OFFSET_Z);
+    m_pVictimTask->SetLineUpUtility(m_pLineUpUtility);  // Use line-up utility for positioning
     m_pVictimTask->SetAnimationSkip(1.0f);  // Skip to end = idle
     m_pVictimTask->SetStartWithIdle(true);  // Start with idle animation directly
 
@@ -638,8 +712,20 @@ void CTaskSimpleGrab::StartIdleAnimations(CPed* grabber)
     CAnimBlendHierarchy* idleHier = CAnimManager::GetAnimation(ANIM_GRAB_IDLE, animBlock);
     if (idleHier)
     {
-        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, idleHier, ANIMATION_PARTIAL | ANIMATION_LOOPED, 8.0f);
-        // No finish callback for looped animation
+        // Idle animation flags:
+        // - ANIMATION_IS_LOOPED (0x02) - loops continuously
+        // - ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
+        // Note: Idle is a full-body animation, not partial
+        const int animFlags = 0x02 | 0x04;  // ANIMATION_IS_LOOPED | ANIMATION_IS_BLEND_AUTO_REMOVE
+        
+        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, idleHier, animFlags, 8.0f);
+        
+        if (m_pAnim)
+        {
+            // Make animation reference its own block (R* pattern)
+            m_pAnim->ReferenceAnimBlock();
+            // No finish callback for looped animation
+        }
     }
 }
 
@@ -669,4 +755,102 @@ void CTaskSimpleGrab::OnAnimFinish(CAnimBlendAssociation* anim, void* data)
     {
         task->FinishGrab();
     }
+}
+
+// ============================================================================
+// Action Methods
+// ============================================================================
+
+bool CTaskSimpleGrab::IsAttackPressed() const
+{
+    return PadFix::MeleeAttackJustDown(CPad::GetPad(0), false) != 0;
+}
+
+void CTaskSimpleGrab::StartAction(eGrabAction action)
+{
+    if (!m_pGrabber || !m_pGrabber->m_pRwClump)
+    {
+        return;
+    }
+
+    // Get animation block
+    CAnimBlock* animBlock = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME);
+    if (!animBlock)
+    {
+        return;
+    }
+
+    // Determine which animation to play based on action
+    const char* grabberAnimName = nullptr;
+    const char* victimAnimName = nullptr;
+    
+    switch (action)
+    {
+    case eGrabAction::JAB:
+        grabberAnimName = ANIM_GRAB_JAB;
+        victimAnimName = ANIM_GRABBED_JAB;
+        break;
+    // TODO: Add THROW, UPPERCUT cases here
+    default:
+        return;
+    }
+
+    // Get the grabber's animation
+    CAnimBlendHierarchy* grabberHier = CAnimManager::GetAnimation(grabberAnimName, animBlock);
+    if (!grabberHier)
+    {
+        return;
+    }
+
+    // Stop current idle animation - just detach callback, NO blend delta
+    if (m_pAnim)
+    {
+        m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
+    }
+
+    // Start grabber's action animation (will replace the idle)
+    m_pAnim = CAnimManager::BlendAnimation(m_pGrabber->m_pRwClump, grabberHier, ANIMATION_PARTIAL, 8.0f);
+    if (m_pAnim)
+    {
+        // Make animation reference its own block (R* pattern)
+        m_pAnim->ReferenceAnimBlock();
+        m_pAnim->SetFinishCallback(OnActionAnimFinish, this);
+    }
+
+    // Tell victim to play their reaction animation
+    if (m_pVictimTask && victimAnimName)
+    {
+        m_pVictimTask->PlayReactionAnimation(victimAnimName);
+    }
+
+    // Update state
+    m_currentAction = action;
+    m_state = eGrabState::ACTION;
+}
+
+void CTaskSimpleGrab::OnActionFinished()
+{
+    // Return to holding state and restart idle animations
+    m_currentAction = eGrabAction::NONE;
+    m_state = eGrabState::HOLDING;
+    
+    if (m_pGrabber)
+    {
+        StartIdleAnimations(m_pGrabber);
+    }
+}
+
+void CTaskSimpleGrab::OnActionAnimFinish(CAnimBlendAssociation* anim, void* data)
+{
+    CTaskSimpleGrab* task = static_cast<CTaskSimpleGrab*>(data);
+    if (!task)
+    {
+        return;
+    }
+
+    // CRITICAL: Clear pointer FIRST
+    task->m_pAnim = nullptr;
+
+    // Transition back to holding
+    task->OnActionFinished();
 }

@@ -59,9 +59,7 @@ namespace CGrabSystem
         unsigned int pedState = (unsigned int)player->m_ePedState;
         
         // Disallow grab during certain states
-        // PEDSTATE_DEAD = 55, PEDSTATE_DIE = 54, PEDSTATE_ARRESTED = 53
-        // PEDSTATE_DRIVING = 50, PEDSTATE_IN_CAR = 51
-        if (pedState >= 50 && pedState <= 55)
+        if (pedState >= PEDSTATE_DEAD && pedState <= PEDSTATE_ARRESTED)
         {
             return false;
         }

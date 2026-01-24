@@ -4,6 +4,9 @@
 #include <CTask.h>
 #include <CPed.h>
 #include <CAnimBlendAssociation.h>
+#include <PadFix.h>
+#include "CTaskUtilityLineUpPedWithPed.h"
+
 
 // Forward declaration
 class CTaskSimpleGrabbed;
@@ -61,16 +64,24 @@ public:
     static constexpr const char* ANIM_GRAB = "Fight_grab";
     static constexpr const char* ANIM_GRAB_IDLE = "Fight_grab_idle";
     static constexpr const char* ANIM_GRABBED_IDLE = "Fight_grabbed_idle";
+    
+    // Action animations
+    static constexpr const char* ANIM_GRAB_JAB = "Fight_grab_jab";
+    static constexpr const char* ANIM_GRABBED_JAB = "Fight_grabbed_jab";
 
 private:
     // ========== Members ==========
     eGrabState m_state;
+    eGrabAction m_currentAction;            // Current action being performed
     CPed* m_pGrabber;                       // The grabber ped (for collision restore)
     CPed* m_pVictim;                        // The ped we're grabbing (nullptr until attached)
     CTaskSimpleGrabbed* m_pVictimTask;      // Victim's task (for coordination)
     CAnimBlendAssociation* m_pAnim;         // Current animation
     bool m_bAnimsReferenced;                // Whether we've added anim block ref
     float m_fGrabDistance;                  // Distance to victim when grabbed (for animation skip)
+    
+    // Line-up utility for animation-synced victim positioning
+    CTaskUtilityLineUpPedWithPed* m_pLineUpUtility;
 
 public:
     // ========== Constructor/Destructor ==========
@@ -113,7 +124,16 @@ private:
     // Calculate animation skip based on distance
     float CalculateAnimSkip(float distance) const;
     
+    // Create line-up utility for victim positioning
+    void CreateLineUpUtility(float distance);
+    
+    // ========== Action Methods ==========
+    bool IsAttackPressed() const;           // Check if LMB is pressed
+    void StartAction(eGrabAction action);   // Start an action (jab, throw, etc.)
+    void OnActionFinished();                // Called when action animation completes
+    
     // ========== Animation Callbacks ==========
     static void NoOpAnimCallback(CAnimBlendAssociation* anim, void* data);
     static void OnAnimFinish(CAnimBlendAssociation* anim, void* data);
+    static void OnActionAnimFinish(CAnimBlendAssociation* anim, void* data);
 };

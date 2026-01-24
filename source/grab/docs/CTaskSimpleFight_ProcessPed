@@ -1,0 +1,968 @@
+.text:00629920                             ; bool __thiscall CTaskSimpleFight::ProcessPed(struct CTaskSimpleFight *this, struct CPed *ped)
+.text:00629920                             _ZN16CTaskSimpleFight10ProcessPedEP4CPed proc near
+.text:00629920                                                                     ; DATA XREF: .rdata:0086D6A0↓o
+.text:00629920
+.text:00629920                             var_2C          = dword ptr -2Ch
+.text:00629920                             posn            = CVector ptr -18h
+.text:00629920                             anonymous_1     = byte ptr -0Ch
+.text:00629920                             ped             = dword ptr  4
+.text:00629920
+.text:00629920 000 83 EC 18                                sub     esp, 18h        ; Integer Subtraction
+.text:00629923 018 55                                      push    ebp
+.text:00629924 01C 56                                      push    esi
+.text:00629925 020 8B F1                                   mov     esi, ecx
+.text:00629927 020 8A 46 08                                mov     al, [esi+8]
+.text:0062992A 020 33 ED                                   xor     ebp, ebp        ; Logical Exclusive OR
+.text:0062992C 020 84 C0                                   test    al, al          ; Logical Compare
+.text:0062992E 020 74 60                                   jz      short loc_629990 ; Jump if Zero (ZF=1)
+.text:0062992E
+.text:00629930 020 8B 4E 20                                mov     ecx, [esi+20h]
+.text:00629933 020 3B CD                                   cmp     ecx, ebp        ; Compare Two Operands
+.text:00629935 020 74 4F                                   jz      short loc_629986 ; Jump if Zero (ZF=1)
+.text:00629935
+.text:00629937 020 55                                      push    ebp
+.text:00629938 024 68 90 13 4D 00                          push    offset _ZN20CDefaultAnimCallback13DefaultAnimCBEP21CAnimBlendAssociationPv ; CDefaultAnimCallback::DefaultAnimCB(CAnimBlendAssociation *,void *)
+.text:0062993D 028 E8 7E 52 EA FF                          call    _ZN21CAnimBlendAssociation17SetDeleteCallbackEPFvPS_PvES1_ ; Call Procedure
+.text:0062993D
+.text:00629942 020 8B 4E 20                                mov     ecx, [esi+20h]
+.text:00629945 020 D9 41 18                                fld     dword ptr [ecx+18h] ; Load Real
+.text:00629948 020 D8 1D 50 8B 85 00                       fcomp   ds:fZero        ; 0.0f
+.text:0062994E 020 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629950 020 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629953 020 75 2E                                   jnz     short loc_629983 ; Jump if Not Zero (ZF=0)
+.text:00629953
+.text:00629955 020 D9 41 1C                                fld     dword ptr [ecx+1Ch] ; Load Real
+.text:00629958 020 D8 1D 50 8B 85 00                       fcomp   ds:fZero        ; 0.0f
+.text:0062995E 020 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629960 020 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:00629963 020 75 1E                                   jnz     short loc_629983 ; Jump if Not Zero (ZF=0)
+.text:00629963
+.text:00629965 020 8B 44 24 24                             mov     eax, [esp+20h+ped]
+.text:00629969 020 8B 88 D4 04 00 00                       mov     ecx, [eax+4D4h]
+.text:0062996F 020 8B 50 18                                mov     edx, [eax+18h]
+.text:00629972 020 68 00 00 00 41                          push    8.0             ; blendDelta
+.text:00629977 024 6A 03                                   push    3               ; animId
+.text:00629979 028 51                                      push    ecx             ; group
+.text:0062997A 02C 52                                      push    edx             ; clump
+.text:0062997B 030 E8 90 AC EA FF                          call    _ZN12CAnimManager14BlendAnimationEP7RpClump12AssocGroupId11AnimationIdf ; Call Procedure
+.text:0062997B
+.text:00629980 030 83 C4 10                                add     esp, 10h        ; Add
+.text:00629980
+.text:00629983
+.text:00629983                             loc_629983:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+33↑j
+.text:00629983                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+43↑j
+.text:00629983 020 89 6E 20                                mov     [esi+20h], ebp
+.text:00629983
+.text:00629986
+.text:00629986                             loc_629986:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+15↑j
+.text:00629986 020 5E                                      pop     esi
+.text:00629987 01C B0 01                                   mov     al, 1
+.text:00629989 01C 5D                                      pop     ebp
+.text:0062998A 018 83 C4 18                                add     esp, 18h        ; Add
+.text:0062998D 000 C2 04 00                                retn    4               ; Return Near from Procedure
+.text:0062998D
+.text:00629990                             ; ---------------------------------------------------------------------------
+.text:00629990
+.text:00629990                             loc_629990:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+E↑j
+.text:00629990 020 8A 46 24                                mov     al, [esi+24h]
+.text:00629993 020 84 C0                                   test    al, al          ; Logical Compare
+.text:00629995 020 74 0D                                   jz      short loc_6299A4 ; Jump if Zero (ZF=1)
+.text:00629995
+.text:00629997 020 8A 46 09                                mov     al, [esi+9]
+.text:0062999A 020 84 C0                                   test    al, al          ; Logical Compare
+.text:0062999C 020 74 06                                   jz      short loc_6299A4 ; Jump if Zero (ZF=1)
+.text:0062999C
+.text:0062999E 020 66 89 6E 12                             mov     [esi+12h], bp
+.text:006299A2 020 EB 1B                                   jmp     short loc_6299BF ; Jump
+.text:006299A2
+.text:006299A4                             ; ---------------------------------------------------------------------------
+.text:006299A4
+.text:006299A4                             loc_6299A4:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+75↑j
+.text:006299A4                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+7C↑j
+.text:006299A4 020 D9 05 5C CB B7 00                       fld     CTimer__ms_fTimeStep ; Load Real
+.text:006299AA 020 D8 0D 38 8B 85 00                       fmul    ds:flt_858B38   ; 0.02f
+.text:006299B0 020 D8 0D 4C 8C 85 00                       fmul    ds:flt_858C4C   ; 1000.0f
+.text:006299B6 020 E8 85 81 1F 00                          call    __ftol2         ; Call Procedure
+.text:006299B6
+.text:006299BB 020 66 01 46 12                             add     [esi+12h], ax   ; Add
+.text:006299BB
+.text:006299BF
+.text:006299BF                             loc_6299BF:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+82↑j
+.text:006299BF 020 8A 46 09                                mov     al, [esi+9]
+.text:006299C2 020 84 C0                                   test    al, al          ; Logical Compare
+.text:006299C4 020 75 1C                                   jnz     short loc_6299E2 ; Jump if Not Zero (ZF=0)
+.text:006299C4
+.text:006299C6 020 80 7E 26 01                             cmp     byte ptr [esi+26h], 1 ; Compare Two Operands
+.text:006299CA 020 0F 8C B9 06 00 00                       jl      loc_62A089      ; Jump if Less (SF!=OF)
+.text:006299CA
+.text:006299D0 020 8B 46 1C                                mov     eax, [esi+1Ch]
+.text:006299D3 020 3B C5                                   cmp     eax, ebp        ; Compare Two Operands
+.text:006299D5 020 74 0B                                   jz      short loc_6299E2 ; Jump if Zero (ZF=1)
+.text:006299D5
+.text:006299D7 020 66 83 78 2C 2F                          cmp     word ptr [eax+2Ch], 2Fh ; '/' ; Compare Two Operands
+.text:006299DC 020 0F 84 A7 06 00 00                       jz      loc_62A089      ; Jump if Zero (ZF=1)
+.text:006299DC
+.text:006299E2
+.text:006299E2                             loc_6299E2:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+A4↑j
+.text:006299E2                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+B5↑j
+.text:006299E2 020 8B 46 20                                mov     eax, [esi+20h]
+.text:006299E5 020 3B C5                                   cmp     eax, ebp        ; Compare Two Operands
+.text:006299E7 020 53                                      push    ebx
+.text:006299E8 024 8B 5C 24 28                             mov     ebx, [esp+24h+ped]
+.text:006299EC 024 57                                      push    edi
+.text:006299ED 028 0F 85 A8 01 00 00                       jnz     loc_629B9B      ; Jump if Not Zero (ZF=0)
+.text:006299ED
+.text:006299F3 028 8A 4E 27                                mov     cl, [esi+27h]
+.text:006299F6 028 80 F9 01                                cmp     cl, 1           ; Compare Two Operands
+.text:006299F9 028 74 0F                                   jz      short loc_629A0A ; Jump if Zero (ZF=1)
+.text:006299F9
+.text:006299FB 028 80 F9 0F                                cmp     cl, 0Fh         ; Compare Two Operands
+.text:006299FE 028 74 0A                                   jz      short loc_629A0A ; Jump if Zero (ZF=1)
+.text:006299FE
+.text:00629A00 028 80 F9 10                                cmp     cl, 10h         ; Compare Two Operands
+.text:00629A03 028 74 05                                   jz      short loc_629A0A ; Jump if Zero (ZF=1)
+.text:00629A03
+.text:00629A05 028 80 F9 11                                cmp     cl, 11h         ; Compare Two Operands
+.text:00629A08 028 75 09                                   jnz     short loc_629A13 ; Jump if Not Zero (ZF=0)
+.text:00629A08
+.text:00629A0A
+.text:00629A0A                             loc_629A0A:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+D9↑j
+.text:00629A0A                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+DE↑j
+.text:00629A0A                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+E3↑j
+.text:00629A0A 028 C6 46 08 01                             mov     byte ptr [esi+8], 1
+.text:00629A0E 028 E9 88 01 00 00                          jmp     loc_629B9B      ; Jump
+.text:00629A0E
+.text:00629A13                             ; ---------------------------------------------------------------------------
+.text:00629A13
+.text:00629A13                             loc_629A13:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+E8↑j
+.text:00629A13 028 3B C5                                   cmp     eax, ebp        ; Compare Two Operands
+.text:00629A15 028 0F 85 80 01 00 00                       jnz     loc_629B9B      ; Jump if Not Zero (ZF=0)
+.text:00629A15
+.text:00629A1B 028 39 6E 1C                                cmp     [esi+1Ch], ebp  ; Compare Two Operands
+.text:00629A1E 028 0F 85 77 01 00 00                       jnz     loc_629B9B      ; Jump if Not Zero (ZF=0)
+.text:00629A1E
+.text:00629A24 028 83 BB 34 05 00 00 04                    cmp     dword ptr [ebx+534h], 4 ; Compare Two Operands
+.text:00629A2B 028 7E 0F                                   jle     short loc_629A3C ; Jump if Less or Equal (ZF=1 | SF!=OF)
+.text:00629A2B
+.text:00629A2D 028 8B CB                                   mov     ecx, ebx
+.text:00629A2F 028 E8 BC 5E FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629A2F
+.text:00629A34 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629A36 028 0F 85 5F 01 00 00                       jnz     loc_629B9B      ; Jump if Not Zero (ZF=0)
+.text:00629A36
+.text:00629A3C
+.text:00629A3C                             loc_629A3C:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+10B↑j
+.text:00629A3C 028 0F BE 83 18 07 00 00                    movsx   eax, byte ptr [ebx+718h] ; Move with Sign-Extend
+.text:00629A43 028 6B C0 1C                                imul    eax, 1Ch        ; Signed Multiply
+.text:00629A46 028 8B 84 18 A0 05 00 00                    mov     eax, [eax+ebx+5A0h]
+.text:00629A4D 028 6A 01                                   push    1               ; skill
+.text:00629A4F 02C 50                                      push    eax             ; weaponID
+.text:00629A50 030 E8 0B A2 11 00                          call    _ZN11CWeaponInfo13GetWeaponInfoE11eWeaponTypea ; Call Procedure
+.text:00629A50
+.text:00629A55 030 8A 40 6E                                mov     al, [eax+6Eh]
+.text:00629A58 030 83 C4 08                                add     esp, 8          ; Add
+.text:00629A5B 028 3C 04                                   cmp     al, 4           ; Compare Two Operands
+.text:00629A5D 028 88 44 24 2C                             mov     byte ptr [esp+28h+ped], al
+.text:00629A61 028 75 0C                                   jnz     short loc_629A6F ; Jump if Not Zero (ZF=0)
+.text:00629A61
+.text:00629A63 028 8A 83 2D 07 00 00                       mov     al, [ebx+72Dh]
+.text:00629A69 028 88 44 24 2C                             mov     byte ptr [esp+28h+ped], al
+.text:00629A6D 028 EB 04                                   jmp     short loc_629A73 ; Jump
+.text:00629A6D
+.text:00629A6F                             ; ---------------------------------------------------------------------------
+.text:00629A6F
+.text:00629A6F                             loc_629A6F:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+141↑j
+.text:00629A6F 028 8A 44 24 2C                             mov     al, byte ptr [esp+28h+ped]
+.text:00629A6F
+.text:00629A73
+.text:00629A73                             loc_629A73:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+14D↑j
+.text:00629A73 028 0F BE F8                                movsx   edi, al         ; Move with Sign-Extend
+.text:00629A76 028 83 EF 04                                sub     edi, 4          ; Integer Subtraction
+.text:00629A79 028 69 FF 88 00 00 00                       imul    edi, 88h        ; Signed Multiply
+.text:00629A7F 028 F6 87 55 71 C1 00 04                    test    byte ptr (_ZN16CTaskSimpleFight12m_aComboDataE.m_wFlags+1)[edi], 4 ; Logical Compare
+.text:00629A86 028 0F 84 B6 00 00 00                       jz      loc_629B42      ; Jump if Zero (ZF=1)
+.text:00629A86
+.text:00629A8C 028 8B 97 D0 70 C1 00                       mov     edx, dword ptr _ZN16CTaskSimpleFight12m_aComboDataE.m_dwAnimGroup[edi] ; CTaskSimpleFight::m_aComboData
+.text:00629A92 028 83 FA 21                                cmp     edx, 21h ; '!'  ; Compare Two Operands
+.text:00629A95 028 0F 84 A9 00 00 00                       jz      loc_629B44      ; Jump if Zero (ZF=1)
+.text:00629A95
+.text:00629A9B 028 8B 4E 0C                                mov     ecx, [esi+0Ch]
+.text:00629A9E 028 3B D1                                   cmp     edx, ecx        ; Compare Two Operands
+.text:00629AA0 028 74 33                                   jz      short loc_629AD5 ; Jump if Zero (ZF=1)
+.text:00629AA0
+.text:00629AA2 028 8A 46 0A                                mov     al, [esi+0Ah]
+.text:00629AA5 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629AA7 028 74 21                                   jz      short loc_629ACA ; Jump if Zero (ZF=1)
+.text:00629AA7
+.text:00629AA9 028 8B 15 34 EA B4 00                       mov     edx, _ZN12CAnimManager19ms_aAnimAssocGroupsE ; CAnimManager::ms_aAnimAssocGroups
+.text:00629AAF 028 8D 0C 89                                lea     ecx, [ecx+ecx*4] ; Load Effective Address
+.text:00629AB2 028 8B 04 8A                                mov     eax, [edx+ecx*4]
+.text:00629AB5 028 2D A0 D4 B5 00                          sub     eax, offset _ZN12CAnimManager14ms_aAnimBlocksE ; Integer Subtraction
+.text:00629ABA 028 C1 F8 05                                sar     eax, 5          ; Shift Arithmetic Right
+.text:00629ABD 028 50                                      push    eax
+.text:00629ABE 02C E8 0D A5 EA FF                          call    _ZN12CAnimManager18RemoveAnimBlockRefEi ; Call Procedure
+.text:00629ABE
+.text:00629AC3 02C 83 C4 04                                add     esp, 4          ; Add
+.text:00629AC6 028 C6 46 0A 00                             mov     byte ptr [esi+0Ah], 0
+.text:00629AC6
+.text:00629ACA
+.text:00629ACA                             loc_629ACA:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+187↑j
+.text:00629ACA 028 8B 8F D0 70 C1 00                       mov     ecx, dword ptr _ZN16CTaskSimpleFight12m_aComboDataE.m_dwAnimGroup[edi] ; CTaskSimpleFight::m_aComboData
+.text:00629AD0 028 89 4E 0C                                mov     [esi+0Ch], ecx
+.text:00629AD3 028 EB 07                                   jmp     short loc_629ADC ; Jump
+.text:00629AD3
+.text:00629AD5                             ; ---------------------------------------------------------------------------
+.text:00629AD5
+.text:00629AD5                             loc_629AD5:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+180↑j
+.text:00629AD5 028 8A 4E 0A                                mov     cl, [esi+0Ah]
+.text:00629AD8 028 84 C9                                   test    cl, cl          ; Logical Compare
+.text:00629ADA 028 75 68                                   jnz     short loc_629B44 ; Jump if Not Zero (ZF=0)
+.text:00629ADA
+.text:00629ADC
+.text:00629ADC                             loc_629ADC:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+1B3↑j
+.text:00629ADC 028 8B 4E 0C                                mov     ecx, [esi+0Ch]
+.text:00629ADF 028 A1 34 EA B4 00                          mov     eax, _ZN12CAnimManager19ms_aAnimAssocGroupsE ; CAnimManager::ms_aAnimAssocGroups
+.text:00629AE4 028 8D 14 89                                lea     edx, [ecx+ecx*4] ; Load Effective Address
+.text:00629AE7 028 8B 04 90                                mov     eax, [eax+edx*4]
+.text:00629AEA 028 3B C5                                   cmp     eax, ebp        ; Compare Two Operands
+.text:00629AEC 028 75 0F                                   jnz     short loc_629AFD ; Jump if Not Zero (ZF=0)
+.text:00629AEC
+.text:00629AEE 028 51                                      push    ecx             ; index
+.text:00629AEF 02C E8 3C 9F EA FF                          call    _ZN12CAnimManager16GetAnimBlockNameE12AssocGroupId ; Call Procedure
+.text:00629AEF
+.text:00629AF4 02C 50                                      push    eax             ; name
+.text:00629AF5 030 E8 46 9E EA FF                          call    _ZN12CAnimManager17GetAnimationBlockEPKc ; Call Procedure
+.text:00629AF5
+.text:00629AFA 030 83 C4 08                                add     esp, 8          ; Add
+.text:00629AFA
+.text:00629AFD
+.text:00629AFD                             loc_629AFD:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+1CC↑j
+.text:00629AFD 028 8A 50 10                                mov     dl, [eax+10h]
+.text:00629B00 028 8B C8                                   mov     ecx, eax
+.text:00629B02 028 81 E9 A0 D4 B5 00                       sub     ecx, offset _ZN12CAnimManager14ms_aAnimBlocksE ; Integer Subtraction
+.text:00629B08 028 C1 F9 05                                sar     ecx, 5          ; Shift Arithmetic Right
+.text:00629B0B 028 84 D2                                   test    dl, dl          ; Logical Compare
+.text:00629B0D 028 74 13                                   jz      short loc_629B22 ; Jump if Zero (ZF=1)
+.text:00629B0D
+.text:00629B0F 028 51                                      push    ecx
+.text:00629B10 02C E8 9B A4 EA FF                          call    _ZN12CAnimManager15AddAnimBlockRefEi ; Call Procedure
+.text:00629B10
+.text:00629B15 02C 8A 44 24 30                             mov     al, byte ptr [esp+2Ch+ped]
+.text:00629B19 02C 83 C4 04                                add     esp, 4          ; Add
+.text:00629B1C 028 C6 46 0A 01                             mov     byte ptr [esi+0Ah], 1
+.text:00629B20 028 EB 22                                   jmp     short loc_629B44 ; Jump
+.text:00629B20
+.text:00629B22                             ; ---------------------------------------------------------------------------
+.text:00629B22
+.text:00629B22                             loc_629B22:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+1ED↑j
+.text:00629B22 028 81 C1 E7 63 00 00                       add     ecx, 63E7h      ; Add
+.text:00629B28 028 6A 08                                   push    8               ; flags
+.text:00629B2A 02C 51                                      push    ecx             ; nModelId
+.text:00629B2B 030 E8 B0 EC DD FF                          call    _ZN10CStreaming12RequestModelEii ; Call Procedure
+.text:00629B2B
+.text:00629B30 030 8A 46 26                                mov     al, [esi+26h]
+.text:00629B33 030 83 C4 08                                add     esp, 8          ; Add
+.text:00629B36 028 3C 0B                                   cmp     al, 0Bh         ; Compare Two Operands
+.text:00629B38 028 7C 08                                   jl      short loc_629B42 ; Jump if Less (SF!=OF)
+.text:00629B38
+.text:00629B3A 028 3C 0E                                   cmp     al, 0Eh         ; Compare Two Operands
+.text:00629B3C 028 7F 04                                   jg      short loc_629B42 ; Jump if Greater (ZF=0 & SF=OF)
+.text:00629B3C
+.text:00629B3E 028 C6 46 26 0B                             mov     byte ptr [esi+26h], 0Bh
+.text:00629B3E
+.text:00629B42
+.text:00629B42                             loc_629B42:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+166↑j
+.text:00629B42                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+218↑j
+.text:00629B42                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+21C↑j
+.text:00629B42 028 B0 04                                   mov     al, 4
+.text:00629B42
+.text:00629B44
+.text:00629B44                             loc_629B44:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+175↑j
+.text:00629B44                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+1BA↑j
+.text:00629B44                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+200↑j
+.text:00629B44 028 0F BE C8                                movsx   ecx, al         ; Move with Sign-Extend
+.text:00629B47 028 83 E9 04                                sub     ecx, 4          ; Integer Subtraction
+.text:00629B4A 028 69 C9 88 00 00 00                       imul    ecx, 88h        ; Signed Multiply
+.text:00629B50 028 68 00 00 80 40                          push    4.0             ; blendDelta
+.text:00629B55 02C 88 46 24                                mov     [esi+24h], al
+.text:00629B58 02C 8B 91 D0 70 C1 00                       mov     edx, dword ptr _ZN16CTaskSimpleFight12m_aComboDataE.m_dwAnimGroup[ecx] ; CTaskSimpleFight::m_aComboData
+.text:00629B5E 02C 8B 43 18                                mov     eax, [ebx+18h]
+.text:00629B61 02C 68 DF 00 00 00                          push    0DFh            ; animId
+.text:00629B66 030 52                                      push    edx             ; group
+.text:00629B67 034 50                                      push    eax             ; clump
+.text:00629B68 038 E8 A3 AA EA FF                          call    _ZN12CAnimManager14BlendAnimationEP7RpClump12AssocGroupId11AnimationIdf ; Call Procedure
+.text:00629B68
+.text:00629B6D 038 83 C4 10                                add     esp, 10h        ; Add
+.text:00629B70 028 56                                      push    esi
+.text:00629B71 02C 68 E0 DA 61 00                          push    offset _ZN16CTaskSimpleFight17FinishMeleeAnimCBEP21CAnimBlendAssociationPv ; CTaskSimpleFight::FinishMeleeAnimCB(CAnimBlendAssociation *,void *)
+.text:00629B76 030 8B C8                                   mov     ecx, eax
+.text:00629B78 030 89 46 20                                mov     [esi+20h], eax
+.text:00629B7B 030 E8 40 50 EA FF                          call    _ZN21CAnimBlendAssociation17SetDeleteCallbackEPFvPS_PvES1_ ; Call Procedure
+.text:00629B7B
+.text:00629B80 028 6A 01                                   push    1               ; eMoveState
+.text:00629B82 02C 8B CB                                   mov     ecx, ebx        ; this
+.text:00629B84 02C E8 77 50 FB FF                          call    _ZN4CPed12SetMoveStateE10eMoveState ; Call Procedure
+.text:00629B84
+.text:00629B89 028 C7 83 38 05 00 00 01 00                 mov     dword ptr [ebx+538h], 1
+.text:00629B89 028 00 00
+.text:00629B93 028 C6 46 24 00                             mov     byte ptr [esi+24h], 0
+.text:00629B97 028 C6 46 27 00                             mov     byte ptr [esi+27h], 0
+.text:00629B97
+.text:00629B9B
+.text:00629B9B                             loc_629B9B:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+CD↑j
+.text:00629B9B                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+EE↑j
+.text:00629B9B                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+F5↑j
+.text:00629B9B                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+FE↑j ...
+.text:00629B9B 028 83 7E 0C 21                             cmp     dword ptr [esi+0Ch], 21h ; '!' ; Compare Two Operands
+.text:00629B9F 028 74 11                                   jz      short loc_629BB2 ; Jump if Zero (ZF=1)
+.text:00629B9F
+.text:00629BA1 028 8A 46 0A                                mov     al, [esi+0Ah]
+.text:00629BA4 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629BA6 028 75 0A                                   jnz     short loc_629BB2 ; Jump if Not Zero (ZF=0)
+.text:00629BA6
+.text:00629BA8 028 6A FF                                   push    0FFFFFFFFh      ; nextCmd
+.text:00629BAA 02C 53                                      push    ebx             ; ped
+.text:00629BAB 030 8B CE                                   mov     ecx, esi        ; this
+.text:00629BAD 030 E8 3E 2C FF FF                          call    _ZN16CTaskSimpleFight20GetAvailableComboSetEP4CPeda ; Call Procedure
+.text:00629BAD
+.text:00629BB2
+.text:00629BB2                             loc_629BB2:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+27F↑j
+.text:00629BB2                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+286↑j
+.text:00629BB2 028 39 6E 1C                                cmp     [esi+1Ch], ebp  ; Compare Two Operands
+.text:00629BB5 028 0F 85 93 00 00 00                       jnz     loc_629C4E      ; Jump if Not Zero (ZF=0)
+.text:00629BB5
+.text:00629BBB 028 8B CB                                   mov     ecx, ebx
+.text:00629BBD 028 E8 2E 5D FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629BBD
+.text:00629BC2 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629BC4 028 74 1C                                   jz      short loc_629BE2 ; Jump if Zero (ZF=1)
+.text:00629BC4
+.text:00629BC6 028 66 8B 4E 12                             mov     cx, [esi+12h]
+.text:00629BCA 028 66 3B 4E 10                             cmp     cx, [esi+10h]   ; Compare Two Operands
+.text:00629BCE 028 76 12                                   jbe     short loc_629BE2 ; Jump if Below or Equal (CF=1 | ZF=1)
+.text:00629BCE
+.text:00629BD0 028 8A 46 26                                mov     al, [esi+26h]
+.text:00629BD3 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629BD5 028 75 0B                                   jnz     short loc_629BE2 ; Jump if Not Zero (ZF=0)
+.text:00629BD5
+.text:00629BD7 028 8A 46 24                                mov     al, [esi+24h]
+.text:00629BDA 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629BDC 028 75 04                                   jnz     short loc_629BE2 ; Jump if Not Zero (ZF=0)
+.text:00629BDC
+.text:00629BDE 028 C6 46 26 01                             mov     byte ptr [esi+26h], 1
+.text:00629BDE
+.text:00629BE2
+.text:00629BE2                             loc_629BE2:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+2A4↑j
+.text:00629BE2                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+2AE↑j
+.text:00629BE2                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+2B5↑j
+.text:00629BE2                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+2BC↑j
+.text:00629BE2 028 8A 46 26                                mov     al, [esi+26h]
+.text:00629BE5 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629BE7 028 75 0B                                   jnz     short loc_629BF4 ; Jump if Not Zero (ZF=0)
+.text:00629BE7
+.text:00629BE9 028 8A 4E 24                                mov     cl, [esi+24h]
+.text:00629BEC 028 84 C9                                   test    cl, cl          ; Logical Compare
+.text:00629BEE 028 0F 84 03 04 00 00                       jz      loc_629FF7      ; Jump if Zero (ZF=1)
+.text:00629BEE
+.text:00629BF4
+.text:00629BF4                             loc_629BF4:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+2C7↑j
+.text:00629BF4 028 80 7E 27 10                             cmp     byte ptr [esi+27h], 10h ; Compare Two Operands
+.text:00629BF8 028 0F 84 F9 03 00 00                       jz      loc_629FF7      ; Jump if Zero (ZF=1)
+.text:00629BF8
+.text:00629BFE 028 50                                      push    eax             ; nextCmd
+.text:00629BFF 02C 53                                      push    ebx             ; ped
+.text:00629C00 030 8B CE                                   mov     ecx, esi        ; this
+.text:00629C02 030 E8 E9 2B FF FF                          call    _ZN16CTaskSimpleFight20GetAvailableComboSetEP4CPeda ; Call Procedure
+.text:00629C02
+.text:00629C07 028 8B CB                                   mov     ecx, ebx
+.text:00629C09 028 88 46 24                                mov     [esi+24h], al
+.text:00629C0C 028 E8 DF 5C FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629C0C
+.text:00629C11 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629C13 028 74 28                                   jz      short loc_629C3D ; Jump if Zero (ZF=1)
+.text:00629C13
+.text:00629C15 028 8A 46 26                                mov     al, [esi+26h]
+.text:00629C18 028 3C 03                                   cmp     al, 3           ; Compare Two Operands
+.text:00629C1A 028 7C 11                                   jl      short loc_629C2D ; Jump if Less (SF!=OF)
+.text:00629C1A
+.text:00629C1C 028 3C 06                                   cmp     al, 6           ; Compare Two Operands
+.text:00629C1E 028 7F 0D                                   jg      short loc_629C2D ; Jump if Greater (ZF=0 & SF=OF)
+.text:00629C1E
+.text:00629C20 028 53                                      push    ebx             ; player
+.text:00629C21 02C 8B CE                                   mov     ecx, esi        ; this
+.text:00629C23 02C E8 88 2D FF FF                          call    _ZN16CTaskSimpleFight17SetPlayerMoveAnimEP10CPlayerPed ; Call Procedure
+.text:00629C23
+.text:00629C28 028 E9 CA 03 00 00                          jmp     loc_629FF7      ; Jump
+.text:00629C28
+.text:00629C2D                             ; ---------------------------------------------------------------------------
+.text:00629C2D
+.text:00629C2D                             loc_629C2D:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+2FA↑j
+.text:00629C2D                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+2FE↑j
+.text:00629C2D 028 53                                      push    ebx             ; ped
+.text:00629C2E 02C 8B CE                                   mov     ecx, esi        ; this
+.text:00629C30 02C E8 DB AA FF FF                          call    CTaskSimpleFight__ChooseAttackPlayer ; Call Procedure
+.text:00629C30
+.text:00629C35 028 0F BF D0                                movsx   edx, ax         ; Move with Sign-Extend
+.text:00629C38 028 E9 B1 03 00 00                          jmp     loc_629FEE      ; Jump
+.text:00629C38
+.text:00629C3D                             ; ---------------------------------------------------------------------------
+.text:00629C3D
+.text:00629C3D                             loc_629C3D:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+2F3↑j
+.text:00629C3D 028 53                                      push    ebx
+.text:00629C3E 02C 8B CE                                   mov     ecx, esi
+.text:00629C40 02C E8 FB AD FF FF                          call    CTaskSimpleFight__ChooseAttackAI ; Call Procedure
+.text:00629C40
+.text:00629C45 028 0F BF C0                                movsx   eax, ax         ; Move with Sign-Extend
+.text:00629C48 028 50                                      push    eax
+.text:00629C49 02C E9 A1 03 00 00                          jmp     loc_629FEF      ; Jump
+.text:00629C49
+.text:00629C4E                             ; ---------------------------------------------------------------------------
+.text:00629C4E
+.text:00629C4E                             loc_629C4E:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+295↑j
+.text:00629C4E 028 0F BE 7E 24                             movsx   edi, byte ptr [esi+24h] ; Move with Sign-Extend
+.text:00629C52 028 0F BE 8B 18 07 00 00                    movsx   ecx, byte ptr [ebx+718h] ; Move with Sign-Extend
+.text:00629C59 028 83 EF 04                                sub     edi, 4          ; Integer Subtraction
+.text:00629C5C 028 6B C9 1C                                imul    ecx, 1Ch        ; Signed Multiply
+.text:00629C5F 028 8B 84 19 A0 05 00 00                    mov     eax, [ecx+ebx+5A0h]
+.text:00629C66 028 69 FF 88 00 00 00                       imul    edi, 88h        ; Signed Multiply
+.text:00629C6C 028 81 C7 D0 70 C1 00                       add     edi, offset _ZN16CTaskSimpleFight12m_aComboDataE ; Add
+.text:00629C72 028 83 F8 09                                cmp     eax, 9          ; Compare Two Operands
+.text:00629C75 028 75 10                                   jnz     short loc_629C87 ; Jump if Not Zero (ZF=0)
+.text:00629C75
+.text:00629C77 028 68 9A 00 00 00                          push    9Ah             ; audioEventId
+.text:00629C7C 02C 8D 8B 94 03 00 00                       lea     ecx, [ebx+394h] ; this
+.text:00629C82 02C E8 69 CD EB FF                          call    _ZN23CAEPedWeaponAudioEntity13AddAudioEventEi ; Call Procedure
+.text:00629C82
+.text:00629C87
+.text:00629C87                             loc_629C87:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+355↑j
+.text:00629C87 028 80 7E 24 04                             cmp     byte ptr [esi+24h], 4 ; Compare Two Operands
+.text:00629C8B 028 7D 7C                                   jge     short loc_629D09 ; Jump if Greater or Equal (SF=OF)
+.text:00629C8B
+.text:00629C8D 028 8A 56 27                                mov     dl, [esi+27h]
+.text:00629C90 028 80 FA 08                                cmp     dl, 8           ; Compare Two Operands
+.text:00629C93 028 74 05                                   jz      short loc_629C9A ; Jump if Zero (ZF=1)
+.text:00629C93
+.text:00629C95 028 80 FA 0A                                cmp     dl, 0Ah         ; Compare Two Operands
+.text:00629C98 028 75 35                                   jnz     short loc_629CCF ; Jump if Not Zero (ZF=0)
+.text:00629C98
+.text:00629C9A
+.text:00629C9A                             loc_629C9A:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+373↑j
+.text:00629C9A 028 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629C9D 028 D9 41 20                                fld     dword ptr [ecx+20h] ; Load Real
+.text:00629CA0 028 8B 41 14                                mov     eax, [ecx+14h]
+.text:00629CA3 028 D8 70 10                                fdiv    dword ptr [eax+10h] ; Divide Real
+.text:00629CA6 028 D8 1D 94 2E 8D 00                       fcomp   flt_8D2E94      ; Compare Real and Pop
+.text:00629CAC 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629CAE 028 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629CB1 028 75 1C                                   jnz     short loc_629CCF ; Jump if Not Zero (ZF=0)
+.text:00629CB1
+.text:00629CB3 028 D9 41 1C                                fld     dword ptr [ecx+1Ch] ; Load Real
+.text:00629CB6 028 D8 1D 3C 9C 85 00                       fcomp   ds:flt_859C3C   ; Compare Real and Pop
+.text:00629CBC 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629CBE 028 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629CC1 028 75 0C                                   jnz     short loc_629CCF ; Jump if Not Zero (ZF=0)
+.text:00629CC1
+.text:00629CC3 028 C7 41 1C 00 00 80 C0                    mov     dword ptr [ecx+1Ch], -4.0
+.text:00629CCA 028 E9 28 03 00 00                          jmp     loc_629FF7      ; Jump
+.text:00629CCA
+.text:00629CCF                             ; ---------------------------------------------------------------------------
+.text:00629CCF
+.text:00629CCF                             loc_629CCF:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+378↑j
+.text:00629CCF                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+391↑j
+.text:00629CCF                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+3A1↑j
+.text:00629CCF 028 80 FA 03                                cmp     dl, 3           ; Compare Two Operands
+.text:00629CD2 028 0F 85 1F 03 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629CD2
+.text:00629CD8 028 38 56 26                                cmp     [esi+26h], dl   ; Compare Two Operands
+.text:00629CDB 028 75 09                                   jnz     short loc_629CE6 ; Jump if Not Zero (ZF=0)
+.text:00629CDB
+.text:00629CDD 028 C6 46 26 00                             mov     byte ptr [esi+26h], 0
+.text:00629CE1 028 E9 11 03 00 00                          jmp     loc_629FF7      ; Jump
+.text:00629CE1
+.text:00629CE6                             ; ---------------------------------------------------------------------------
+.text:00629CE6
+.text:00629CE6                             loc_629CE6:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+3BB↑j
+.text:00629CE6 028 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629CE9 028 D9 41 1C                                fld     dword ptr [ecx+1Ch] ; Load Real
+.text:00629CEC 028 D8 1D 3C 9C 85 00                       fcomp   ds:flt_859C3C   ; Compare Real and Pop
+.text:00629CF2 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629CF4 028 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629CF7 028 0F 85 FA 02 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629CF7
+.text:00629CFD 028 C7 41 1C 00 00 80 C0                    mov     dword ptr [ecx+1Ch], -4.0
+.text:00629D04 028 E9 EE 02 00 00                          jmp     loc_629FF7      ; Jump
+.text:00629D04
+.text:00629D09                             ; ---------------------------------------------------------------------------
+.text:00629D09
+.text:00629D09                             loc_629D09:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+36B↑j
+.text:00629D09 028 80 7E 27 02                             cmp     byte ptr [esi+27h], 2 ; Compare Two Operands
+.text:00629D0D 028 0F 85 BA 00 00 00                       jnz     loc_629DCD      ; Jump if Not Zero (ZF=0)
+.text:00629D0D
+.text:00629D13 028 8A 46 26                                mov     al, [esi+26h]
+.text:00629D16 028 3C 02                                   cmp     al, 2           ; Compare Two Operands
+.text:00629D18 028 75 59                                   jnz     short loc_629D73 ; Jump if Not Zero (ZF=0)
+.text:00629D18
+.text:00629D1A 028 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629D1D 028 F6 41 2E 01                             test    byte ptr [ecx+2Eh], 1 ; Logical Compare
+.text:00629D21 028 74 4C                                   jz      short loc_629D6F ; Jump if Zero (ZF=1)
+.text:00629D21
+.text:00629D23 028 D9 41 20                                fld     dword ptr [ecx+20h] ; Load Real
+.text:00629D26 028 D8 5F 48                                fcomp   dword ptr [edi+48h] ; Compare Real and Pop
+.text:00629D29 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629D2B 028 F6 C4 05                                test    ah, 5           ; Logical Compare
+.text:00629D2E 028 7A 10                                   jp      short loc_629D40 ; Jump if Parity (PF=1)
+.text:00629D2E
+.text:00629D30 028 D9 41 28                                fld     dword ptr [ecx+28h] ; Load Real
+.text:00629D33 028 D8 41 20                                fadd    dword ptr [ecx+20h] ; Add Real
+.text:00629D36 028 D8 5F 48                                fcomp   dword ptr [edi+48h] ; Compare Real and Pop
+.text:00629D39 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629D3B 028 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:00629D3E 028 74 1D                                   jz      short loc_629D5D ; Jump if Zero (ZF=1)
+.text:00629D3E
+.text:00629D40
+.text:00629D40                             loc_629D40:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+40E↑j
+.text:00629D40 028 D9 41 20                                fld     dword ptr [ecx+20h] ; Load Real
+.text:00629D43 028 D8 5F 4C                                fcomp   dword ptr [edi+4Ch] ; Compare Real and Pop
+.text:00629D46 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629D48 028 F6 C4 05                                test    ah, 5           ; Logical Compare
+.text:00629D4B 028 7A 6D                                   jp      short loc_629DBA ; Jump if Parity (PF=1)
+.text:00629D4B
+.text:00629D4D 028 D9 41 28                                fld     dword ptr [ecx+28h] ; Load Real
+.text:00629D50 028 D8 41 20                                fadd    dword ptr [ecx+20h] ; Add Real
+.text:00629D53 028 D8 5F 4C                                fcomp   dword ptr [edi+4Ch] ; Compare Real and Pop
+.text:00629D56 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629D58 028 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:00629D5B 028 75 5D                                   jnz     short loc_629DBA ; Jump if Not Zero (ZF=0)
+.text:00629D5B
+.text:00629D5D
+.text:00629D5D                             loc_629D5D:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+41E↑j
+.text:00629D5D 028 80 61 2E FE                             and     byte ptr [ecx+2Eh], 0FEh ; Logical AND
+.text:00629D61 028 8B 4F 48                                mov     ecx, [edi+48h]
+.text:00629D64 028 51                                      push    ecx
+.text:00629D65 02C 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629D68 02C E8 13 4D EA FF                          call    _ZN21CAnimBlendAssociation14SetCurrentTimeEf ; Call Procedure
+.text:00629D68
+.text:00629D6D 028 EB 4B                                   jmp     short loc_629DBA ; Jump
+.text:00629D6D
+.text:00629D6F                             ; ---------------------------------------------------------------------------
+.text:00629D6F
+.text:00629D6F                             loc_629D6F:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+401↑j
+.text:00629D6F 028 3C 02                                   cmp     al, 2           ; Compare Two Operands
+.text:00629D71 028 74 47                                   jz      short loc_629DBA ; Jump if Zero (ZF=1)
+.text:00629D71
+.text:00629D73
+.text:00629D73                             loc_629D73:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+3F8↑j
+.text:00629D73 028 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629D76 028 F6 41 2E 01                             test    byte ptr [ecx+2Eh], 1 ; Logical Compare
+.text:00629D7A 028 75 27                                   jnz     short loc_629DA3 ; Jump if Not Zero (ZF=0)
+.text:00629D7A
+.text:00629D7C 028 D9 41 18                                fld     dword ptr [ecx+18h] ; Load Real
+.text:00629D7F 028 D8 1D 50 8B 85 00                       fcomp   ds:fZero        ; 0.0f
+.text:00629D85 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629D87 028 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629D8A 028 75 17                                   jnz     short loc_629DA3 ; Jump if Not Zero (ZF=0)
+.text:00629D8A
+.text:00629D8C 028 D9 41 1C                                fld     dword ptr [ecx+1Ch] ; Load Real
+.text:00629D8F 028 D8 1D 50 8B 85 00                       fcomp   ds:fZero        ; 0.0f
+.text:00629D95 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629D97 028 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:00629D9A 028 75 07                                   jnz     short loc_629DA3 ; Jump if Not Zero (ZF=0)
+.text:00629D9A
+.text:00629D9C 028 C7 41 1C 00 00 80 C0                    mov     dword ptr [ecx+1Ch], -4.0
+.text:00629D9C
+.text:00629DA3
+.text:00629DA3                             loc_629DA3:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+45A↑j
+.text:00629DA3                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+46A↑j
+.text:00629DA3                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+47A↑j
+.text:00629DA3 028 80 7E 26 0B                             cmp     byte ptr [esi+26h], 0Bh ; Compare Two Operands
+.text:00629DA7 028 7C 11                                   jl      short loc_629DBA ; Jump if Less (SF!=OF)
+.text:00629DA7
+.text:00629DA9 028 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629DAC 028 55                                      push    ebp
+.text:00629DAD 02C 68 90 13 4D 00                          push    offset _ZN20CDefaultAnimCallback13DefaultAnimCBEP21CAnimBlendAssociationPv ; CDefaultAnimCallback::DefaultAnimCB(CAnimBlendAssociation *,void *)
+.text:00629DB2 030 E8 09 4E EA FF                          call    _ZN21CAnimBlendAssociation17SetDeleteCallbackEPFvPS_PvES1_ ; Call Procedure
+.text:00629DB2
+.text:00629DB7 028 89 6E 1C                                mov     [esi+1Ch], ebp
+.text:00629DB7
+.text:00629DBA
+.text:00629DBA                             loc_629DBA:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+42B↑j
+.text:00629DBA                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+43B↑j
+.text:00629DBA                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+44D↑j
+.text:00629DBA                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+451↑j ...
+.text:00629DBA 028 80 7E 26 02                             cmp     byte ptr [esi+26h], 2 ; Compare Two Operands
+.text:00629DBE 028 0F 85 33 02 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629DBE
+.text:00629DC4 028 C6 46 26 00                             mov     byte ptr [esi+26h], 0
+.text:00629DC8 028 E9 2A 02 00 00                          jmp     loc_629FF7      ; Jump
+.text:00629DC8
+.text:00629DCD                             ; ---------------------------------------------------------------------------
+.text:00629DCD
+.text:00629DCD                             loc_629DCD:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+3ED↑j
+.text:00629DCD 028 8B 56 1C                                mov     edx, [esi+1Ch]
+.text:00629DD0 028 D9 42 18                                fld     dword ptr [edx+18h] ; Load Real
+.text:00629DD3 028 D8 1D 20 8C 85 00                       fcomp   ds:flt_858C20   ; 0.9
+.text:00629DD9 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629DDB 028 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629DDE 028 0F 85 13 02 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629DDE
+.text:00629DE4 028 D9 42 1C                                fld     dword ptr [edx+1Ch] ; Load Real
+.text:00629DE7 028 D8 1D 50 8B 85 00                       fcomp   ds:fZero        ; 0.0f
+.text:00629DED 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629DEF 028 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:00629DF2 028 0F 85 FF 01 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629DF2
+.text:00629DF8 028 0F BE 4E 25                             movsx   ecx, byte ptr [esi+25h] ; Move with Sign-Extend
+.text:00629DFC 028 D9 42 20                                fld     dword ptr [edx+20h] ; Load Real
+.text:00629DFF 028 D8 5C 8F 08                             fcomp   dword ptr [edi+ecx*4+8] ; Compare Real and Pop
+.text:00629E03 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629E05 028 F6 C4 41                                test    ah, 41h         ; Logical Compare
+.text:00629E08 028 0F 85 E9 00 00 00                       jnz     loc_629EF7      ; Jump if Not Zero (ZF=0)
+.text:00629E08
+.text:00629E0E 028 D9 42 28                                fld     dword ptr [edx+28h] ; Load Real
+.text:00629E11 028 D8 6A 20                                fsubr   dword ptr [edx+20h] ; Subtract Real Reversed
+.text:00629E14 028 D8 5C 8F 08                             fcomp   dword ptr [edi+ecx*4+8] ; Compare Real and Pop
+.text:00629E18 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629E1A 028 F6 C4 05                                test    ah, 5           ; Logical Compare
+.text:00629E1D 028 0F 8A D4 00 00 00                       jp      loc_629EF7      ; Jump if Parity (PF=1)
+.text:00629E1D
+.text:00629E23 028 8B 54 8F 5C                             mov     edx, [edi+ecx*4+5Ch]
+.text:00629E27 028 6A 00                                   push    0               ; a8
+.text:00629E29 02C 52                                      push    edx             ; a7
+.text:00629E2A 030 6A 00                                   push    0               ; a5
+.text:00629E2C 034 6A 00                                   push    0               ; ped
+.text:00629E2E 038 68 00 00 80 3F                          push    1.0             ; a4
+.text:00629E33 03C 6A 00                                   push    0               ; a3
+.text:00629E35 040 8D AB 38 01 00 00                       lea     ebp, [ebx+138h] ; Load Effective Address
+.text:00629E3B 040 6A 3C                                   push    3Ch ; '<'       ; audioEventVolumeIndex
+.text:00629E3D 044 8B CD                                   mov     ecx, ebp        ; audio
+.text:00629E3F 044 E8 6C 8D EB FF                          call    _ZN17CAEPedAudioEntity13AddAudioEventEiffP9CPhysicalhij ; Call Procedure
+.text:00629E3F
+.text:00629E44 028 80 7E 24 05                             cmp     byte ptr [esi+24h], 5 ; Compare Two Operands
+.text:00629E48 028 75 2F                                   jnz     short loc_629E79 ; Jump if Not Zero (ZF=0)
+.text:00629E48
+.text:00629E4A 028 8A 46 25                                mov     al, [esi+25h]
+.text:00629E4D 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629E4F 028 7C 28                                   jl      short loc_629E79 ; Jump if Less (SF!=OF)
+.text:00629E4F
+.text:00629E51 028 3C 02                                   cmp     al, 2           ; Compare Two Operands
+.text:00629E53 028 7F 24                                   jg      short loc_629E79 ; Jump if Greater (ZF=0 & SF=OF)
+.text:00629E53
+.text:00629E55 028 0F BE C0                                movsx   eax, al         ; Move with Sign-Extend
+.text:00629E58 028 8B 0C 85 3C 2E 8D 00                    mov     ecx, AE_DOUBLE_HIT_DELAYS_MS[eax*4]
+.text:00629E5F 028 8B 54 87 5C                             mov     edx, [edi+eax*4+5Ch]
+.text:00629E63 028 51                                      push    ecx             ; a8
+.text:00629E64 02C 52                                      push    edx             ; a7
+.text:00629E65 030 6A 00                                   push    0               ; a5
+.text:00629E67 034 6A 00                                   push    0               ; ped
+.text:00629E69 038 68 00 00 80 3F                          push    1.0             ; a4
+.text:00629E6E 03C 6A 00                                   push    0               ; a3
+.text:00629E70 040 6A 3C                                   push    3Ch ; '<'       ; audioEventVolumeIndex
+.text:00629E72 044 8B CD                                   mov     ecx, ebp        ; audio
+.text:00629E74 044 E8 37 8D EB FF                          call    _ZN17CAEPedAudioEntity13AddAudioEventEiffP9CPhysicalhij ; Call Procedure
+.text:00629E74
+.text:00629E79
+.text:00629E79                             loc_629E79:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+528↑j
+.text:00629E79                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+52F↑j
+.text:00629E79                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+533↑j
+.text:00629E79 028 8A 46 26                                mov     al, [esi+26h]
+.text:00629E7C 028 3C 0B                                   cmp     al, 0Bh         ; Compare Two Operands
+.text:00629E7E 028 7C 08                                   jl      short loc_629E88 ; Jump if Less (SF!=OF)
+.text:00629E7E
+.text:00629E80 028 3C 0E                                   cmp     al, 0Eh         ; Compare Two Operands
+.text:00629E82 028 7F 04                                   jg      short loc_629E88 ; Jump if Greater (ZF=0 & SF=OF)
+.text:00629E82
+.text:00629E84 028 C6 46 26 00                             mov     byte ptr [esi+26h], 0
+.text:00629E84
+.text:00629E88
+.text:00629E88                             loc_629E88:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+55E↑j
+.text:00629E88                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+562↑j
+.text:00629E88 028 0F BE 46 25                             movsx   eax, byte ptr [esi+25h] ; Move with Sign-Extend
+.text:00629E8C 028 8A 4C 38 50                             mov     cl, [eax+edi+50h]
+.text:00629E90 028 80 F9 07                                cmp     cl, 7           ; Compare Two Operands
+.text:00629E93 028 8D 44 38 50                             lea     eax, [eax+edi+50h] ; Load Effective Address
+.text:00629E97 028 0F 84 5A 01 00 00                       jz      loc_629FF7      ; Jump if Zero (ZF=1)
+.text:00629E97
+.text:00629E9D 028 0F B6 C1                                movzx   eax, cl         ; Move with Zero-Extend
+.text:00629EA0 028 8D 0C 40                                lea     ecx, [eax+eax*2] ; Load Effective Address
+.text:00629EA3 028 8B 43 14                                mov     eax, [ebx+14h]
+.text:00629EA6 028 8D 14 8D D0 77 C1 00                    lea     edx, ds:0C177D0h[ecx*4] ; Load Effective Address
+.text:00629EAD 028 52                                      push    edx             ; point
+.text:00629EAE 02C 50                                      push    eax             ; m
+.text:00629EAF 030 8D 4C 24 18                             lea     ecx, [esp+30h+posn] ; Load Effective Address
+.text:00629EB3 030 51                                      push    ecx             ; outPoint
+.text:00629EB4 034 E8 D7 29 F7 FF                          call    REPLACED_BY__Matrix__TransformPoint ; Call Procedure
+.text:00629EB4
+.text:00629EB9 034 8A 46 25                                mov     al, [esi+25h]
+.text:00629EBC 034 83 C4 0C                                add     esp, 0Ch        ; Add
+.text:00629EBF 028 3C 04                                   cmp     al, 4           ; Compare Two Operands
+.text:00629EC1 028 75 22                                   jnz     short loc_629EE5 ; Jump if Not Zero (ZF=0)
+.text:00629EC1
+.text:00629EC3 028 8B 15 5C CB B7 00                       mov     edx, CTimer__ms_fTimeStep
+.text:00629EC9 028 52                                      push    edx             ; num
+.text:00629ECA 02C 8D 43 44                                lea     eax, [ebx+44h]  ; Load Effective Address
+.text:00629ECD 02C 50                                      push    eax             ; inVec
+.text:00629ECE 030 8D 4C 24 24                             lea     ecx, [esp+30h+anonymous_1] ; Load Effective Address
+.text:00629ED2 030 51                                      push    ecx             ; outVec
+.text:00629ED3 034 E8 E8 5F DE FF                          call    VectorScale     ; Call Procedure
+.text:00629ED3
+.text:00629ED8 034 83 C4 0C                                add     esp, 0Ch        ; Add
+.text:00629EDB 028 50                                      push    eax
+.text:00629EDC 02C 8D 4C 24 14                             lea     ecx, [esp+2Ch+posn] ; Load Effective Address
+.text:00629EE0 02C E8 1B 7B DE FF                          call    CVector__operatorPlus ; Call Procedure
+.text:00629EE0
+.text:00629EE5
+.text:00629EE5                             loc_629EE5:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+5A1↑j
+.text:00629EE5 028 8D 54 24 10                             lea     edx, [esp+28h+posn] ; Load Effective Address
+.text:00629EE9 028 52                                      push    edx             ; pos
+.text:00629EEA 02C 53                                      push    ebx             ; ped
+.text:00629EEB 030 8B CE                                   mov     ecx, esi        ; this
+.text:00629EED 030 E8 BE A1 FF FF                          call    _ZN16CTaskSimpleFight11FightStrikeEP4CPedR7CVector ; Call Procedure
+.text:00629EED
+.text:00629EF2 028 E9 00 01 00 00                          jmp     loc_629FF7      ; Jump
+.text:00629EF2
+.text:00629EF7                             ; ---------------------------------------------------------------------------
+.text:00629EF7
+.text:00629EF7                             loc_629EF7:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+4E8↑j
+.text:00629EF7                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+4FD↑j
+.text:00629EF7 028 D9 42 20                                fld     dword ptr [edx+20h] ; Load Real
+.text:00629EFA 028 D8 5C 8F 1C                             fcomp   dword ptr [edi+ecx*4+1Ch] ; Compare Real and Pop
+.text:00629EFE 028 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:00629F00 028 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:00629F03 028 0F 85 EE 00 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629F03
+.text:00629F09 028 8A 46 26                                mov     al, [esi+26h]
+.text:00629F0C 028 3C 0B                                   cmp     al, 0Bh         ; Compare Two Operands
+.text:00629F0E 028 0F 8C E3 00 00 00                       jl      loc_629FF7      ; Jump if Less (SF!=OF)
+.text:00629F0E
+.text:00629F14 028 3C 0E                                   cmp     al, 0Eh         ; Compare Two Operands
+.text:00629F16 028 0F 8F DB 00 00 00                       jg      loc_629FF7      ; Jump if Greater (ZF=0 & SF=OF)
+.text:00629F16
+.text:00629F1C 028 8A 4E 25                                mov     cl, [esi+25h]
+.text:00629F1F 028 84 C9                                   test    cl, cl          ; Logical Compare
+.text:00629F21 028 0F 84 9D 00 00 00                       jz      loc_629FC4      ; Jump if Zero (ZF=1)
+.text:00629F21
+.text:00629F27 028 80 F9 01                                cmp     cl, 1           ; Compare Two Operands
+.text:00629F2A 028 0F 84 94 00 00 00                       jz      loc_629FC4      ; Jump if Zero (ZF=1)
+.text:00629F2A
+.text:00629F30 028 80 F9 03                                cmp     cl, 3           ; Compare Two Operands
+.text:00629F33 028 75 28                                   jnz     short loc_629F5D ; Jump if Not Zero (ZF=0)
+.text:00629F33
+.text:00629F35 028 8B CB                                   mov     ecx, ebx
+.text:00629F37 028 E8 B4 59 FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629F37
+.text:00629F3C 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629F3E 028 0F 84 B3 00 00 00                       jz      loc_629FF7      ; Jump if Zero (ZF=1)
+.text:00629F3E
+.text:00629F44 028 53                                      push    ebx             ; ped
+.text:00629F45 02C 8B CE                                   mov     ecx, esi        ; this
+.text:00629F47 02C E8 C4 A7 FF FF                          call    CTaskSimpleFight__ChooseAttackPlayer ; Call Procedure
+.text:00629F47
+.text:00629F4C 028 66 3D 03 00                             cmp     ax, 3           ; Compare Two Operands
+.text:00629F50 028 0F 85 A1 00 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629F50
+.text:00629F56 028 6A 03                                   push    3
+.text:00629F58 02C E9 92 00 00 00                          jmp     loc_629FEF      ; Jump
+.text:00629F58
+.text:00629F5D                             ; ---------------------------------------------------------------------------
+.text:00629F5D
+.text:00629F5D                             loc_629F5D:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+613↑j
+.text:00629F5D 028 80 F9 04                                cmp     cl, 4           ; Compare Two Operands
+.text:00629F60 028 0F 85 91 00 00 00                       jnz     loc_629FF7      ; Jump if Not Zero (ZF=0)
+.text:00629F60
+.text:00629F66 028 80 7E 24 0C                             cmp     byte ptr [esi+24h], 0Ch ; Compare Two Operands
+.text:00629F6A 028 75 27                                   jnz     short loc_629F93 ; Jump if Not Zero (ZF=0)
+.text:00629F6A
+.text:00629F6C 028 8B CB                                   mov     ecx, ebx
+.text:00629F6E 028 E8 7D 59 FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629F6E
+.text:00629F73 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629F75 028 74 1C                                   jz      short loc_629F93 ; Jump if Zero (ZF=1)
+.text:00629F75
+.text:00629F77 028 0F BE 46 25                             movsx   eax, byte ptr [esi+25h] ; Move with Sign-Extend
+.text:00629F7B 028 51                                      push    ecx
+.text:00629F7C 02C 8B 4E 1C                                mov     ecx, [esi+1Ch]
+.text:00629F7F 02C D9 44 87 08                             fld     dword ptr [edi+eax*4+8] ; Load Real
+.text:00629F83 02C D8 25 58 8C 85 00                       fsub    ds:flt_858C58   ; 9.9999998e-3
+.text:00629F89 02C D9 1C 24                                fstp    [esp+2Ch+var_2C] ; Store Real and Pop
+.text:00629F8C 02C E8 EF 4A EA FF                          call    _ZN21CAnimBlendAssociation14SetCurrentTimeEf ; Call Procedure
+.text:00629F8C
+.text:00629F91 028 EB 64                                   jmp     short loc_629FF7 ; Jump
+.text:00629F91
+.text:00629F93                             ; ---------------------------------------------------------------------------
+.text:00629F93
+.text:00629F93                             loc_629F93:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+64A↑j
+.text:00629F93                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+655↑j
+.text:00629F93 028 33 C9                                   xor     ecx, ecx        ; Logical Exclusive OR
+.text:00629F95 028 8A 4E 26                                mov     cl, [esi+26h]
+.text:00629F98 028 51                                      push    ecx             ; nextCmd
+.text:00629F99 02C 53                                      push    ebx             ; ped
+.text:00629F9A 030 8B CE                                   mov     ecx, esi        ; this
+.text:00629F9C 030 E8 4F 28 FF FF                          call    _ZN16CTaskSimpleFight20GetAvailableComboSetEP4CPeda ; Call Procedure
+.text:00629F9C
+.text:00629FA1 028 8B CB                                   mov     ecx, ebx
+.text:00629FA3 028 88 46 24                                mov     [esi+24h], al
+.text:00629FA6 028 E8 45 59 FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629FA6
+.text:00629FAB 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629FAD 028 8B CE                                   mov     ecx, esi        ; this
+.text:00629FAF 028 74 0B                                   jz      short loc_629FBC ; Jump if Zero (ZF=1)
+.text:00629FAF
+.text:00629FB1 028 53                                      push    ebx             ; ped
+.text:00629FB2 02C E8 59 A7 FF FF                          call    CTaskSimpleFight__ChooseAttackPlayer ; Call Procedure
+.text:00629FB2
+.text:00629FB7 028 0F BF D0                                movsx   edx, ax         ; Move with Sign-Extend
+.text:00629FBA 028 EB 32                                   jmp     short loc_629FEE ; Jump
+.text:00629FBA
+.text:00629FBC                             ; ---------------------------------------------------------------------------
+.text:00629FBC
+.text:00629FBC                             loc_629FBC:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+68F↑j
+.text:00629FBC 028 0F BE 46 25                             movsx   eax, byte ptr [esi+25h] ; Move with Sign-Extend
+.text:00629FC0 028 40                                      inc     eax             ; Increment by 1
+.text:00629FC1 028 50                                      push    eax
+.text:00629FC2 02C EB 2D                                   jmp     short loc_629FF1 ; Jump
+.text:00629FC2
+.text:00629FC4                             ; ---------------------------------------------------------------------------
+.text:00629FC4
+.text:00629FC4                             loc_629FC4:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+601↑j
+.text:00629FC4                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+60A↑j
+.text:00629FC4 028 50                                      push    eax             ; nextCmd
+.text:00629FC5 02C 53                                      push    ebx             ; ped
+.text:00629FC6 030 8B CE                                   mov     ecx, esi        ; this
+.text:00629FC8 030 E8 23 28 FF FF                          call    _ZN16CTaskSimpleFight20GetAvailableComboSetEP4CPeda ; Call Procedure
+.text:00629FC8
+.text:00629FCD 028 8B CB                                   mov     ecx, ebx
+.text:00629FCF 028 88 46 24                                mov     [esi+24h], al
+.text:00629FD2 028 E8 19 59 FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:00629FD2
+.text:00629FD7 028 84 C0                                   test    al, al          ; Logical Compare
+.text:00629FD9 028 74 0E                                   jz      short loc_629FE9 ; Jump if Zero (ZF=1)
+.text:00629FD9
+.text:00629FDB 028 53                                      push    ebx             ; ped
+.text:00629FDC 02C 8B CE                                   mov     ecx, esi        ; this
+.text:00629FDE 02C E8 2D A7 FF FF                          call    CTaskSimpleFight__ChooseAttackPlayer ; Call Procedure
+.text:00629FDE
+.text:00629FE3 028 0F BF C8                                movsx   ecx, ax         ; Move with Sign-Extend
+.text:00629FE6 028 51                                      push    ecx
+.text:00629FE7 02C EB 06                                   jmp     short loc_629FEF ; Jump
+.text:00629FE7
+.text:00629FE9                             ; ---------------------------------------------------------------------------
+.text:00629FE9
+.text:00629FE9                             loc_629FE9:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+6B9↑j
+.text:00629FE9 028 0F BE 56 25                             movsx   edx, byte ptr [esi+25h] ; Move with Sign-Extend
+.text:00629FED 028 42                                      inc     edx             ; Increment by 1
+.text:00629FED
+.text:00629FEE
+.text:00629FEE                             loc_629FEE:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+318↑j
+.text:00629FEE                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+69A↑j
+.text:00629FEE 028 52                                      push    edx             ; newMove
+.text:00629FEE
+.text:00629FEF
+.text:00629FEF                             loc_629FEF:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+329↑j
+.text:00629FEF                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+638↑j
+.text:00629FEF                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+6C7↑j
+.text:00629FEF 02C 8B CE                                   mov     ecx, esi        ; this
+.text:00629FEF
+.text:00629FF1
+.text:00629FF1                             loc_629FF1:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+6A2↑j
+.text:00629FF1 02C 53                                      push    ebx             ; ped
+.text:00629FF2 030 E8 19 9B FF FF                          call    CTaskSimpleFight__StartAnim ; Call Procedure
+.text:00629FF2
+.text:00629FF7
+.text:00629FF7                             loc_629FF7:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+2CE↑j
+.text:00629FF7                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+2D8↑j
+.text:00629FF7                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+308↑j
+.text:00629FF7                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+3AA↑j ...
+.text:00629FF7 028 8B 4E 18                                mov     ecx, [esi+18h]
+.text:00629FFA 028 85 C9                                   test    ecx, ecx        ; Logical Compare
+.text:00629FFC 028 74 30                                   jz      short loc_62A02E ; Jump if Zero (ZF=1)
+.text:00629FFC
+.text:00629FFE 028 8B 43 14                                mov     eax, [ebx+14h]
+.text:0062A001 028 85 C0                                   test    eax, eax        ; Logical Compare
+.text:0062A003 028 8D 50 30                                lea     edx, [eax+30h]  ; Load Effective Address
+.text:0062A006 028 75 03                                   jnz     short loc_62A00B ; Jump if Not Zero (ZF=0)
+.text:0062A006
+.text:0062A008 028 8D 53 04                                lea     edx, [ebx+4]    ; Load Effective Address
+.text:0062A008
+.text:0062A00B
+.text:0062A00B                             loc_62A00B:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+6E6↑j
+.text:0062A00B 028 8B 41 14                                mov     eax, [ecx+14h]
+.text:0062A00E 028 85 C0                                   test    eax, eax        ; Logical Compare
+.text:0062A010 028 74 05                                   jz      short loc_62A017 ; Jump if Zero (ZF=1)
+.text:0062A010
+.text:0062A012 028 83 C0 30                                add     eax, 30h ; '0'  ; Add
+.text:0062A015 028 EB 03                                   jmp     short loc_62A01A ; Jump
+.text:0062A015
+.text:0062A017                             ; ---------------------------------------------------------------------------
+.text:0062A017
+.text:0062A017                             loc_62A017:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+6F0↑j
+.text:0062A017 028 8D 41 04                                lea     eax, [ecx+4]    ; Load Effective Address
+.text:0062A017
+.text:0062A01A
+.text:0062A01A                             loc_62A01A:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+6F5↑j
+.text:0062A01A 028 D9 00                                   fld     dword ptr [eax] ; Load Real
+.text:0062A01C 028 D8 22                                   fsub    dword ptr [edx] ; Subtract Real
+.text:0062A01E 028 D9 40 04                                fld     dword ptr [eax+4] ; Load Real
+.text:0062A021 028 D8 62 04                                fsub    dword ptr [edx+4] ; Subtract Real
+.text:0062A024 028 D9 C9                                   fxch    st(1)           ; Exchange Registers
+.text:0062A026 028 D9 E0                                   fchs                    ; Change Sign
+.text:0062A028 028 D9 C9                                   fxch    st(1)           ; Exchange Registers
+.text:0062A02A 028 D9 F3                                   fpatan                  ; Partial arctangent
+.text:0062A02C 028 EB 4F                                   jmp     short loc_62A07D ; Jump
+.text:0062A02C
+.text:0062A02E                             ; ---------------------------------------------------------------------------
+.text:0062A02E
+.text:0062A02E                             loc_62A02E:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+6DC↑j
+.text:0062A02E 028 8B CB                                   mov     ecx, ebx
+.text:0062A030 028 E8 BB 58 FB FF                          call    _ZNK4CPed8IsPlayerEv ; Call Procedure
+.text:0062A030
+.text:0062A035 028 84 C0                                   test    al, al          ; Logical Compare
+.text:0062A037 028 74 4A                                   jz      short loc_62A083 ; Jump if Zero (ZF=1)
+.text:0062A037
+.text:0062A039 028 A0 2E EC B6 00                          mov     al, _ZN7CCamera20m_bUseMouse3rdPersonE ; CCamera::m_bUseMouse3rdPerson
+.text:0062A03E 028 84 C0                                   test    al, al          ; Logical Compare
+.text:0062A040 028 74 41                                   jz      short loc_62A083 ; Jump if Zero (ZF=1)
+.text:0062A040
+.text:0062A042 028 8B CB                                   mov     ecx, ebx
+.text:0062A044 028 E8 17 F5 FD FF                          call    _ZN10CPlayerPed16GetPadFromPlayerEv ; Call Procedure
+.text:0062A044
+.text:0062A049 028 8B C8                                   mov     ecx, eax
+.text:0062A04B 028 E8 20 66 F1 FF                          call    _ZN4CPad9GetTargetEv ; Call Procedure
+.text:0062A04B
+.text:0062A050 028 84 C0                                   test    al, al          ; Logical Compare
+.text:0062A052 028 74 2F                                   jz      short loc_62A083 ; Jump if Zero (ZF=1)
+.text:0062A052
+.text:0062A054 028 A1 2C F3 B6 00                          mov     eax, TheCamera.m_aCams.m_vecFront.x
+.text:0062A059 028 8B 0D 30 F3 B6 00                       mov     ecx, TheCamera.m_aCams.m_vecFront.y
+.text:0062A05F 028 8B 15 34 F3 B6 00                       mov     edx, TheCamera.m_aCams.m_vecFront.z
+.text:0062A065 028 89 44 24 10                             mov     [esp+28h+posn.x], eax
+.text:0062A069 028 D9 44 24 10                             fld     [esp+28h+posn.x] ; Load Real
+.text:0062A06D 028 D9 E0                                   fchs                    ; Change Sign
+.text:0062A06F 028 89 4C 24 14                             mov     [esp+28h+posn.y], ecx
+.text:0062A073 028 D9 44 24 14                             fld     [esp+28h+posn.y] ; Load Real
+.text:0062A077 028 89 54 24 18                             mov     [esp+28h+posn.z], edx
+.text:0062A07B 028 D9 F3                                   fpatan                  ; Partial arctangent
+.text:0062A07B
+.text:0062A07D
+.text:0062A07D                             loc_62A07D:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+70C↑j
+.text:0062A07D 028 D9 9B 5C 05 00 00                       fstp    dword ptr [ebx+55Ch] ; Store Real and Pop
+.text:0062A07D
+.text:0062A083
+.text:0062A083                             loc_62A083:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+717↑j
+.text:0062A083                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+720↑j
+.text:0062A083                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+732↑j
+.text:0062A083 028 5F                                      pop     edi
+.text:0062A084 024 C6 46 09 00                             mov     byte ptr [esi+9], 0
+.text:0062A088 024 5B                                      pop     ebx
+.text:0062A088
+.text:0062A089
+.text:0062A089                             loc_62A089:                             ; CODE XREF: CTaskSimpleFight::ProcessPed(CPed *)+AA↑j
+.text:0062A089                                                                     ; CTaskSimpleFight::ProcessPed(CPed *)+BC↑j
+.text:0062A089 020 5E                                      pop     esi
+.text:0062A08A 01C 32 C0                                   xor     al, al          ; Logical Exclusive OR
+.text:0062A08C 01C 5D                                      pop     ebp
+.text:0062A08D 018 83 C4 18                                add     esp, 18h        ; Add
+.text:0062A090 000 C2 04 00                                retn    4               ; Return Near from Procedure
+.text:0062A090
+.text:0062A090                             _ZN16CTaskSimpleFight10ProcessPedEP4CPed endp
+.text:0062A090
+.text:0062A090                             ; ---------------------------------------------------------------------------

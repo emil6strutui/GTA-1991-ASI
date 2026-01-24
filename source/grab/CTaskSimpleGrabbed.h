@@ -5,6 +5,8 @@
 #include <CPed.h>
 #include <CAnimBlendAssociation.h>
 
+#include "CTaskUtilityLineUpPedWithPed.h"
+
 // Forward declaration
 class CTaskSimpleGrab;
 
@@ -45,16 +47,11 @@ private:
     bool m_bAnimsReferenced;                // Whether we've added anim block ref
     bool m_bCollisionDisabled;              // Whether we've disabled collision
     
-    // Position offset from grabber (set when attached)
-    float m_fOffsetForward;
-    float m_fOffsetRight;
-    float m_fOffsetZ;
+    // Line-up utility for animation-synced positioning (owned by grabber task)
+    CTaskUtilityLineUpPedWithPed* m_pLineUpUtility;
     
     // Animation skip (0-1, synced with grabber's skip based on distance)
     float m_fAnimationSkip;
-    
-    // Whether we've set the initial start position
-    bool m_bStartPositionSet;
     
     // Whether to start directly with idle animation (for snap case)
     bool m_bStartWithIdle;
@@ -83,21 +80,24 @@ public:
     // Called by grabber task when releasing
     void OnReleased();
     
-    // Set position offset from grabber
-    void SetOffset(float forward, float right, float z);
+    // Set line-up utility for position synchronization (owned by grabber task, NOT us)
+    void SetLineUpUtility(CTaskUtilityLineUpPedWithPed* utility) { m_pLineUpUtility = utility; }
     
     // Set animation skip amount (synced with grabber)
     void SetAnimationSkip(float skip);
     
     // Set to start directly with idle animation (for snap case)
     void SetStartWithIdle(bool startWithIdle);
+    
+    // Called by grabber when performing an action (jab, throw, etc.)
+    void PlayReactionAnimation(const char* animName);
 
 private:
     // ========== Internal Methods ==========
     bool LoadAnimations();
     void StartGrabbedAnimation(CPed* ped);
-    void SyncPositionToGrabber(CPed* ped);
     
     // ========== Animation Callbacks ==========
     static void OnAnimDeleted(CAnimBlendAssociation* anim, void* data);
+    static void OnReactionAnimFinished(CAnimBlendAssociation* anim, void* data);
 };

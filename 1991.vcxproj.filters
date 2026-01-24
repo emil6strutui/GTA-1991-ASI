@@ -13,12 +13,18 @@
     <Filter Include="source\keybindings">
       <UniqueIdentifier>{B2C3D4E5-F6A7-8901-BCDE-F12345678901}</UniqueIdentifier>
     </Filter>
+    <Filter Include="source\grab">
+      <UniqueIdentifier>{bc0a2597-c692-4465-ab71-523701c684fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\button-icons">
+      <UniqueIdentifier>{9c7ab303-3935-4dd0-b5f2-92954c00939a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\enex-markers">
+      <UniqueIdentifier>{0ed98438-3c30-46bd-aa61-db27090024cd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Main.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\ButtonIcons.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\hud\CHud1991.cpp">
@@ -30,10 +36,24 @@
     <ClCompile Include="source\keybindings\CKeybindings.cpp">
       <Filter>source\keybindings</Filter>
     </ClCompile>
-    <ClCompile Include="source\Markers.cpp" />
-    <ClCompile Include="source\grab\CGrabSystem.cpp" />
-    <ClCompile Include="source\grab\CTaskSimpleBeGrabbed.cpp" />
-    <ClCompile Include="source\grab\CTaskSimpleGrab.cpp" />
+    <ClCompile Include="source\grab\CGrabSystem.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
+    <ClCompile Include="source\grab\CTaskSimpleGrab.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
+    <ClCompile Include="source\grab\CTaskSimpleGrabbed.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
+    <ClCompile Include="source\grab\CTaskUtilityLineUpPedWithPed.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ButtonIcons.cpp">
+      <Filter>source\button-icons</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Markers.cpp">
+      <Filter>source\enex-markers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\hud\CHud1991.h">
@@ -57,9 +77,23 @@
     <ClInclude Include="source\keybindings\CKeybindingsConfig.h">
       <Filter>source\keybindings</Filter>
     </ClInclude>
-    <ClInclude Include="source\GInputAPI.h" />
-    <ClInclude Include="source\Markers.h" />
-    <ClInclude Include="source\grab\CGrabSystem.h" />
-    <ClInclude Include="source\grab\CTaskSimpleGrab.h" />
+    <ClInclude Include="source\grab\CGrabSystem.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
+    <ClInclude Include="source\grab\CTaskSimpleGrab.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
+    <ClInclude Include="source\grab\CTaskSimpleGrabbed.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
+    <ClInclude Include="source\GInputAPI.h">
+      <Filter>source\button-icons</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Markers.h">
+      <Filter>source\enex-markers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\grab\PadFix.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

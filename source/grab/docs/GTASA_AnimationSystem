@@ -1,0 +1,255 @@
+GTA SA Animation System - Complete Guide
+1. Overview & Architecture
+The GTA SA animation system is a hierarchical skeletal animation system with per-bone blending. Think of it like layers in Photoshop, 
+but for character poses:
+┌─────────────────────────────────────────────────────────┐
+│                    CPed (Character)                     │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │              RpClump (3D Model)                   │  │
+│  │  ┌─────────────────────────────────────────────┐ │  │
+│  │  │         CAnimBlendClumpData                 │ │  │
+│  │  │  ┌──────────────────────────────────────┐  │ │  │
+│  │  │  │  CAnimBlendAssociation (Walk - 60%)  │  │ │  │
+│  │  │  │  CAnimBlendAssociation (Run - 40%)   │  │ │  │
+│  │  │  │  CAnimBlendAssociation (Smoke - 100%)│  │ │  │
+│  │  │  └──────────────────────────────────────┘  │ │  │
+│  │  └─────────────────────────────────────────────┘ │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+---
+2. Core Animation Concepts with Real-Life Examples
+2.1 Keyframes
+Real-life analogy: Like frames in a flipbook. Each keyframe stores a "snapshot" of a bone's position and rotation at a specific time.
+// From AnimSequenceFrames.h (uncompressed)
+struct KeyFrame {
+    CQuaternion Rot;      // Rotation of the bone
+    float       DeltaTime; // Time since previous keyframe
+};
+struct KeyFrameTrans : KeyFrame {
+    CVector Trans;         // Position offset (only root bone usually has this)
+};
+Example: An arm wave animation might have:
+- Keyframe 0: Arm at side (t=0.0s)
+- Keyframe 1: Arm at 45° (t=0.5s)  
+- Keyframe 2: Arm at 90° (t=1.0s)
+- Keyframe 3: Arm at 45° (t=1.5s)
+- Keyframe 4: Arm at side (t=2.0s)
+2.2 Interpolation (LERP & SLERP)
+Real-life analogy: The "tweening" between keyframes - like how traditional animators drew "in-between" frames.
+// From AnimBlendNode.h:192-195 - Actual interpolation code
+if (m_Seq->m_bHasTranslation) {
+    trans = lerp<CVector>(kfB->Trans, kfA->Trans, t) * blend;  // Linear interpolation for position
+}
+if (m_Seq->m_bHasRotation) {
+    rot.Slerp(kfB->Rot, kfA->Rot, m_Theta, m_InvSinTheta, t); // Spherical interpolation for rotation
+    rot *= blend;
+}
+- LERP (Linear Interpolation): Used for positions. Moves in a straight line from A to B.
+- SLERP (Spherical Linear Interpolation): Used for rotations. Rotates along the shortest arc on a sphere - prevents "gimbal lock" and weird rotation artifacts.
+2.3 Blending
+Real-life analogy: Like a DJ crossfader mixing two songs. m_BlendAmount is how loud each "song" (animation) is.
+From AnimBlendAssociation.h:133-134:
+float m_BlendAmount;   // Current blend weight (0.0 = invisible, 1.0 = fully visible)
+float m_BlendDelta;    // How fast blend changes per second
+How blending works in practice:
+Walking (blend 0.6)  +  Running (blend 0.4)  =  Jogging pose
+     ↓                      ↓
+ 60% of walk pose    40% of run pose
+From RpAnimBlend.cpp:1187-1188 - the actual blending math:
+// Sum rotations (weighted quaternion addition)
+nextQ = nextQ + (q.Dot(nextQ) >= 0.f ? q : -q);  // Add quaternions, flip if needed
+2.4 Partial Animations
+Real-life analogy: Like a green screen effect - you can overlay one animation on specific body parts while another plays on the rest.
+Example: CJ can smoke a cigarette (ANIMATION_IS_PARTIAL) while walking. The smoking animation only affects the arm/hand bones, while walking affects legs/torso.
+From RpAnimBlend.cpp:616-631:
+float CalculateTotalBlendOfPartial(AnimBlendUpdateData* c, AnimBlendFrameData* fd, bool checkDontAddToBlend) {
+    float sum{};
+    if (c->IncludePartial) {
+        for (auto it = c->BlendNodeArrays; *it; it++) {
+            const auto node = *it;
+            const auto assoc = node->GetAnimAssoc();
+            if (assoc->HasFlag(ANIMATION_IS_PARTIAL) && ...) {
+                sum += assoc->GetBlendAmount();  // Calculate how much partial anims contribute
+            }
+        }
+    }
+    return sum;
+}
+2.5 Velocity Extraction
+Real-life analogy: Instead of the root bone moving the mesh, the movement is "extracted" and applied to the character's world position.
+Why? When you animate a walk cycle in Maya/3DS Max, the character moves forward. GTA extracts this movement and applies it to CPed::m_pPosition instead of the skeleton - this way the game controls actual movement speed.
+From RpAnimBlend.cpp:1020-1029:
+if (!fd->KeyFramesIgnoreNodeTranslation) {
+    // Update world positions (This moves the ped around the world)
+    const auto wsPos = gpAnimBlendClump->m_PedPosition;
+    *wsPos += deltaV - currV;  // Apply velocity delta to world position
+    if (hasLoopedVelocity) {
+        *wsPos += loopedDeltaV;
+    }
+    // Update key-frame translation (bone stays in place relative to ped)
+    fd->KeyFrame->t = nextT - deltaV + fd->BonePos;
+}
+---
+3. Class Hierarchy & Relationships
+┌─────────────────────────────────────────────────────────────────┐
+│                        CAnimManager                              │
+│  ┌─────────────────┐  ┌──────────────────────────────────────┐  │
+│  │ ms_aAnimBlocks  │  │  ms_aAnimations (2500 hierarchies)   │  │
+│  │  (180 blocks)   │  │  ┌───────────────────────────────┐   │  │
+│  │  ├─ ped.ifp     │  │  │    CAnimBlendHierarchy        │   │  │
+│  │  ├─ guns.ifp    │  │  │    ├─ CAnimBlendSequence[0]   │   │  │
+│  │  └─ ...         │  │  │    │   (Root bone keyframes)  │   │  │
+│  └─────────────────┘  │  │    ├─ CAnimBlendSequence[1]   │   │  │
+│                       │  │    │   (Spine keyframes)      │   │  │
+│                       │  │    └─ ...                     │   │  │
+│                       │  └───────────────────────────────┘   │  │
+│                       └──────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                                   │
+                                   │ Creates
+                                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              CAnimBlendAssociation (Runtime Instance)            │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ m_BlendHier ───────────────► CAnimBlendHierarchy             ││
+│  │ m_BlendAmount: 0.75                                          ││
+│  │ m_CurrentTime: 1.23s                                         ││
+│  │ m_Speed: 1.0                                                 ││
+│  │ m_BlendNodes[]:                                              ││
+│  │   ├─ CAnimBlendNode[0] → Root bone interpolation             ││
+│  │   ├─ CAnimBlendNode[1] → Spine bone interpolation            ││
+│  │   └─ ...                                                     ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+---
+4. Task-Animation Integration
+This is the key part for your grab system! Tasks control when and what animations play.
+4.1 CTaskSimpleAnim (Base Class)
+From TaskSimpleAnim.h:12-30:
+class CTaskSimpleAnim : public CTaskSimple {
+    CAnimBlendAssociation* m_pAnim;  // The animation this task controls
+    union {
+        struct {
+            bool m_bIsFinished : 1;      // Animation completed
+            bool m_bDontInterrupt : 1;   // Can't be aborted
+            bool m_bHoldLastFrame : 1;   // Freeze on last frame
+            bool m_bDontBlendOut : 1;    // Don't fade out when done
+        };
+    };
+};
+4.2 CTaskSimpleRunAnim - The Core Pattern
+From TaskSimpleRunAnim.cpp:52-69:
+bool CTaskSimpleRunAnim::ProcessPed(CPed* ped) {
+    if (m_bIsFinished)
+        return true;
+    // Only start animation if not already playing
+    if (!m_pAnim && !RpAnimBlendClumpGetAssociation(ped->m_pRwClump, m_nAnimId))
+        StartAnim(ped);
+    return m_bIsFinished;
+}
+void CTaskSimpleRunAnim::StartAnim(CPed* ped) {
+    // BlendAnimation handles fading out conflicting anims automatically
+    m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, m_nAnimGroup, m_nAnimId, m_fBlendDelta);
+    m_pAnim->SetFinishCallback(CTaskSimpleAnim::FinishRunAnimCB, this);  // Notify task when done
+}
+4.3 Animation Finish Callback
+The task gets notified when the animation finishes:
+// From TaskSimpleAnim.cpp (conceptual)
+void CTaskSimpleAnim::FinishRunAnimCB(CAnimBlendAssociation* anim, void* data) {
+    auto task = static_cast<CTaskSimpleAnim*>(data);
+    task->m_bIsFinished = true;  // Mark task as complete
+}
+---
+5. The Animation Update Loop
+Every frame, the animation system updates like this:
+// Simplified from RpAnimBlend.cpp - called from CPed::ProcessAnimGroups()
+void RpAnimBlendClumpUpdateAnimations(RpClump* clump, float timeStep) {
+    // 1. Update time for all animations
+    for (auto& assoc : clump->animations) {
+        assoc.UpdateTimeStep(timeStep);  // Calculate time delta
+        assoc.UpdateTime(timeStep);       // Advance playback, check completion
+    }
+    
+    // 2. For each bone/frame
+    for (auto& frameData : clump->frameData) {
+        CQuaternion finalRot{};
+        CVector finalTrans{};
+        
+        // 3. Blend all animation contributions
+        for (auto& assoc : clump->animations) {
+            auto& node = assoc.GetNodeForBone(frameData.boneId);
+            
+            CQuaternion rot;
+            CVector trans;
+            node.Update(trans, rot, blendWeight);  // Interpolate keyframes
+            
+            finalRot += rot;    // Sum weighted rotations
+            finalTrans += trans; // Sum weighted translations
+        }
+        
+        finalRot.Normalise();
+        frameData.KeyFrame->q = finalRot;
+        frameData.KeyFrame->t = finalTrans;
+    }
+    
+    // 4. Update blend amounts (fade in/out)
+    for (auto& assoc : clump->animations) {
+        assoc.UpdateBlend(timeStep);  // May delete if faded out
+    }
+}
+---
+6. Animation Flags Reference
+From AnimBlendAssociation.h:19-41:
+| Flag | Value | Purpose |
+|------|-------|---------|
+| ANIMATION_IS_PLAYING | 0x01 | Currently advancing time |
+| ANIMATION_IS_LOOPED | 0x02 | Loops when finished |
+| ANIMATION_IS_BLEND_AUTO_REMOVE | 0x04 | Delete when m_BlendAmount <= 0 |
+| ANIMATION_IS_FINISH_AUTO_REMOVE | 0x08 | Start fading out when finished |
+| ANIMATION_IS_PARTIAL | 0x10 | Overlay animation (smoking, gestures) |
+| ANIMATION_IS_SYNCRONISED | 0x20 | Sync with movement anims |
+| ANIMATION_CAN_EXTRACT_VELOCITY | 0x40 | Use Y translation for movement |
+| ANIMATION_CAN_EXTRACT_X_VELOCITY | 0x80 | Use X translation too |
+| ANIMATION_FACIAL | 0x8000 | Never destroy (facial expressions) |
+---
+7. Practical Example: How BlendAnimation Works
+When you call CAnimManager::BlendAnimation(), here's what happens (from AnimManager.cpp:488-538):
+CAnimBlendAssociation* BlendAnimation(RpClump* clump, AssocGroupId groupId, AnimationId animId, float blendDelta) {
+    // 1. Check if this animation is already playing
+    CAnimBlendAssociation* running = FindRunningAnim(clump, groupId, animId);
+    
+    // 2. Fade out conflicting animations
+    for (auto& anim : clump->animations) {
+        if (anim != running && anim.IsPartial() == toBlendIsPartial) {
+            // Calculate negative blend delta to fade out
+            anim.m_BlendDelta = std::min(-0.05f, anim.GetBlendAmount() * -blendDelta);
+            anim.SetFlag(ANIMATION_IS_BLEND_AUTO_REMOVE);  // Delete when faded
+        }
+    }
+    
+    // 3. If already running, just restart if finished
+    if (running) {
+        running->SetBlendDelta((1.f - running->m_BlendAmount) * blendDelta);
+        if (running->HasFinished()) running->Start();
+        return running;
+    }
+    
+    // 4. Create new animation instance
+    auto anim = new CAnimBlendAssociation(toBlendStaticAssoc);
+    anim->Start();
+    anim->SetBlend(0.f, blendDelta);  // Start at 0, fade in
+    return anim;
+}
+---
+8. For Your Grab System (VCS-style)
+For a grab system like VCS, you'll likely need:
+1. Custom Task (CTaskSimpleGrab) that:
+   - Plays grab initiation animation
+   - Syncs with target ped's position
+   - Handles state transitions (grab → hold → throw/release)
+2. Animation Synchronization:
+      // Sync grabbed ped's animation with grabber
+   grabbedPedAnim->SyncAnimation(grabberAnim);
+   
+3. Partial Animations for hold states - so the grabbed ped can still react
+4. Velocity extraction disabled for grabbed peds - you control their position manually

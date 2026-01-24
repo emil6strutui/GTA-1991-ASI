@@ -56,16 +56,11 @@ CTaskSimpleGrabbed::CTaskSimpleGrabbed(CPed* pGrabber, CTaskSimpleGrab* pGrabber
     m_bAnimsReferenced = false;
     m_bCollisionDisabled = false;
     
-    // Default offset (will be set by grabber)
-    m_fOffsetForward = 0.7f;
-    m_fOffsetRight = 0.0f;
-    m_fOffsetZ = 0.0f;
+    // Line-up utility (set by grabber task via SetLineUpUtility)
+    m_pLineUpUtility = nullptr;
     
     // Animation skip (synced with grabber)
     m_fAnimationSkip = 0.0f;
-    
-    // Start position not set yet
-    m_bStartPositionSet = false;
     
     // Default: play grab animation, not idle
     m_bStartWithIdle = false;
@@ -83,16 +78,10 @@ CTaskSimpleGrabbed::~CTaskSimpleGrabbed()
         m_bCollisionDisabled = false;
     }
 
-    // CRITICAL: Detach callback BEFORE blend out to prevent crash
-    // Must use NoOpAnimCallback, NOT nullptr (game always calls the callback)
-    if (m_pAnim)
-    {
-        m_pAnim->SetDeleteCallback(NoOpAnimCallback, nullptr);
-        m_pAnim->m_fBlendDelta = -4.0f;
-        m_pAnim = nullptr;
-    }
-
-    // Release animation reference if we have one
+    // R* pattern for custom animation blocks (see CTaskSimpleGangDriveBy):
+    // 1. Release block ref FIRST
+    // 2. Then detach callback - NO blend delta!
+    
     if (m_bAnimsReferenced)
     {
         int blockIndex = CAnimManager::GetAnimationBlockIndex(ANIM_BLOCK_NAME);
@@ -100,10 +89,21 @@ CTaskSimpleGrabbed::~CTaskSimpleGrabbed()
         {
             CAnimManager::RemoveAnimBlockRef(blockIndex);
         }
+        m_bAnimsReferenced = false;
+    }
+
+   // R* pattern: Set BLEND_AUTO_REMOVE in destructor
+   if (m_pAnim) {
+        m_pAnim->SetDeleteCallback(NoOpAnimCallback, nullptr);
+        m_pAnim->m_nFlags |= ANIMATION_FREEZE_LAST_FRAME;  // 0x04
+        if (m_pAnim->m_fBlendAmount > 0.0f && m_pAnim->m_fBlendDelta >= 0.0f) {
+            m_pAnim->m_fBlendDelta = -4.0f;
+        }
+        m_pAnim = nullptr;
     }
 
     // Notify grabber that we're gone (if they didn't release us)
-    if (m_pGrabberTask && m_state != eGrabbedState::RELEASED)
+    if (m_pGrabberTask && m_state != eGrabbedState::FINISHED)
     {
         m_pGrabberTask->OnVictimLost();
     }
@@ -148,11 +148,10 @@ bool CTaskSimpleGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEven
         m_bCollisionDisabled = false;
     }
 
-    // CRITICAL: Detach callback BEFORE blend out to prevent crash
+    // R* pattern for custom animation blocks: just detach callback, NO blend delta
     if (m_pAnim)
     {
         m_pAnim->SetDeleteCallback(NoOpAnimCallback, nullptr);
-        m_pAnim->m_fBlendDelta = -8.0f; // Fast blend out
         m_pAnim = nullptr;
     }
 
@@ -192,32 +191,17 @@ bool CTaskSimpleGrabbed::ProcessPed(CPed* ped)
         }
     }
 
-    // Check if released by grabber
-    if (m_state == eGrabbedState::RELEASED)
+    // Check if finished
+    if (m_state == eGrabbedState::FINISHED)
     {
-        // Blend out animation
-        if (m_pAnim)
-        {
-            m_pAnim->m_fBlendDelta = -4.0f;
-            if (m_pAnim->m_fBlendAmount <= 0.0f)
-            {
-                m_state = eGrabbedState::FINISHED;
-                return true;
-            }
-        }
-        else
-        {
-            m_state = eGrabbedState::FINISHED;
-            return true;
-        }
-        return false;
+        return true;
     }
 
     // Check if grabber is still valid
     if (!m_pGrabber || m_pGrabber->m_fHealth <= 0.0f)
     {
         OnReleased();
-        return false;
+        return true;
     }
 
     // Load animations if not loaded
@@ -236,22 +220,36 @@ bool CTaskSimpleGrabbed::ProcessPed(CPed* ped)
         StartGrabbedAnimation(ped);
     }
 
-    // Sync position to grabber
-    SyncPositionToGrabber(ped);
+    // Position is handled by SetPedPosition via the line-up utility
 
     return false; // Continue task
 }
 
 bool CTaskSimpleGrabbed::SetPedPosition(CPed* ped)
 {
-    // We control ped position via SyncPositionToGrabber
-    // Return true to indicate we're handling position
-    if (m_state == eGrabbedState::GRABBED && m_pGrabber)
+    // R* always checks for null ped
+    if (!ped)
     {
-        SyncPositionToGrabber(ped);
-        return true;
+        return false;
     }
-    return false;
+    
+    // Use line-up utility for animation-synced positioning
+    // This is the KEY fix - we return true to indicate we control position
+    // and use the utility to smoothly interpolate based on animation progress
+    
+    if (m_state == eGrabbedState::GRABBED && m_pGrabber && m_pLineUpUtility)
+    {
+        // Get our current animation for progress calculation
+        CAnimBlendAssociation* animToUse = m_pAnim;
+        
+        // Use the line-up utility to position victim relative to grabber
+        // based on animation progress
+        bool positioned = m_pLineUpUtility->ProcessPed(ped, m_pGrabber, animToUse);
+        
+        return positioned;  // Return true if we positioned the ped
+    }
+    
+    return false;  // Let game handle position if not grabbed or no utility
 }
 
 // ============================================================================
@@ -260,23 +258,37 @@ bool CTaskSimpleGrabbed::SetPedPosition(CPed* ped)
 
 void CTaskSimpleGrabbed::OnReleased()
 {
-    // Restore collision
-    if (m_bCollisionDisabled && m_pVictimPed)
-    {
+    m_pLineUpUtility = nullptr;
+    m_pGrabber = nullptr;
+    m_pGrabberTask = nullptr;
+    
+    if (m_bCollisionDisabled && m_pVictimPed) {
         m_pVictimPed->bCollidable = true;
         m_bCollisionDisabled = false;
     }
-
-    m_state = eGrabbedState::RELEASED;
-    m_pGrabberTask = nullptr;
+    
+    // >>> R* PATTERN: Blend in idle animation for full-body anims <<<
+    if (m_pVictimPed && m_pVictimPed->m_pRwClump) {
+        CAnimManager::BlendAnimation(
+            m_pVictimPed->m_pRwClump, 
+            m_pVictimPed->m_nAnimGroup,  // Ped's default anim group
+            ANIM_DEFAULT_IDLE_STANCE,                 // Idle animation
+            4.0f                          // Blend speed
+        );
+    }
+    
+    // Detach callback (animation will be cleaned up by BlendAnimation above)
+    if (m_pAnim) {
+        m_pAnim->SetDeleteCallback(NoOpAnimCallback, nullptr);
+        // DON'T set BLEND_AUTO_REMOVE here - BlendAnimation handles it
+        // DON'T set blend delta - BlendAnimation handles it
+        m_pAnim = nullptr;
+    }
+    
+    m_state = eGrabbedState::FINISHED;
 }
 
-void CTaskSimpleGrabbed::SetOffset(float forward, float right, float z)
-{
-    m_fOffsetForward = forward;
-    m_fOffsetRight = right;
-    m_fOffsetZ = z;
-}
+// SetOffset removed - using CTaskUtilityLineUpPedWithPed for positioning
 
 void CTaskSimpleGrabbed::SetAnimationSkip(float skip)
 {
@@ -345,25 +357,35 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
 
     // Calculate blend delta based on skip amount
     // Higher skip = faster blend (snappier for close grabs)
-    float blendDelta = 8.0f;
-    if (m_fAnimationSkip > 0.4f)
-    {
-        blendDelta = 16.0f;
-    }
+    float blendDelta = (m_fAnimationSkip > 0.4f) ? 16.0f : 8.0f;
 
-    // Use ANIMATION_PARTIAL (0x10) for normal grab, add ANIMATION_LOOPED (0x2) for idle
-    int animFlags = m_bStartWithIdle ? (0x10 | 0x2) : 0x10;  // ANIMATION_PARTIAL | ANIMATION_LOOPED
+    // Animation flags:
+    // - Full-body grabbed animation (not partial)
+    // - For idle: add ANIMATION_IS_LOOPED (0x02)
+
+    int animFlags = m_bStartWithIdle ? ANIMATION_LOOPED : 0x0;
 
     // Blend in with high priority to override any other animations
     m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, hier, animFlags, blendDelta);
     
     if (m_pAnim)
     {
+        // Make animation reference its own block (R* pattern)
+        // This ensures block stays loaded while animation is playing
+        m_pAnim->ReferenceAnimBlock();
+        
         // Only skip animation for non-idle (idle starts from beginning and loops)
-        if (!m_bStartWithIdle)
+        if (!m_bStartWithIdle && m_fAnimationSkip > 0.0f && m_pAnim->m_pHierarchy)
         {
+            // IMPORTANT: Use SetCurrentTime() to properly update blend node keyframe state
             float skipTime = m_fAnimationSkip * m_pAnim->m_pHierarchy->m_fTotalTime;
-            m_pAnim->m_fCurrentTime = skipTime;
+            m_pAnim->SetCurrentTime(skipTime);
+        }
+        
+        // If starting with idle, lock position immediately via utility
+        if (m_bStartWithIdle && m_pLineUpUtility)
+        {
+            m_pLineUpUtility->LockPosition();
         }
         
         // Use SetDeleteCallback - fires when anim is deleted for ANY reason
@@ -372,73 +394,7 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
     }
 }
 
-void CTaskSimpleGrabbed::SyncPositionToGrabber(CPed* ped)
-{
-    if (!ped || !m_pGrabber)
-    {
-        return;
-    }
-
-    // Get grabber position and heading
-    CVector grabberPos = m_pGrabber->GetPosition();
-    float grabberHeading = m_pGrabber->m_fCurrentRotation;
-    
-    // Calculate direction vectors
-    float sinH = sinf(grabberHeading);
-    float cosH = cosf(grabberHeading);
-    
-    // Always face the grabber (opposite direction)
-    float victimHeading = grabberHeading + 3.14159f; // 180 degrees opposite
-    while (victimHeading > 3.14159f) victimHeading -= 6.28318f;
-    while (victimHeading < -3.14159f) victimHeading += 6.28318f;
-    
-    ped->m_fCurrentRotation = victimHeading;
-    ped->m_fAimingRotation = victimHeading;
-
-    // Calculate final grab position (where victim ends up when fully grabbed)
-    CVector finalPos;
-    finalPos.x = grabberPos.x - sinH * m_fOffsetForward + cosH * m_fOffsetRight;
-    finalPos.y = grabberPos.y + cosH * m_fOffsetForward + sinH * m_fOffsetRight;
-    finalPos.z = grabberPos.z + m_fOffsetZ;
-
-    // FIRST FRAME: Set the start position based on animation skip
-    // The animation has root motion that moves victim forward (towards grabber)
-    // So we place victim at a distance where the remaining animation will bring them to finalPos
-    if (!m_bStartPositionSet)
-    {
-        m_bStartPositionSet = true;
-        
-        // Calculate how much animation movement remains
-        // remaining_ratio = 1.0 - skip (if skip=0.6, only 40% of movement left)
-        float remainingRatio = 1.0f - m_fAnimationSkip;
-        float remainingDistance = remainingRatio * ANIM_FORWARD_DISTANCE;
-        
-        // Start position = final position + remaining distance (away from grabber)
-        // "Away from grabber" is in the direction the grabber is facing
-        CVector startPos;
-        startPos.x = finalPos.x - sinH * remainingDistance;
-        startPos.y = finalPos.y + cosH * remainingDistance;
-        startPos.z = finalPos.z;
-        
-        ped->SetPosn(startPos);
-        return;
-    }
-
-    // SUBSEQUENT FRAMES: Check if animation is complete
-    float animProgress = 1.0f; // Default to complete if no anim
-    if (m_pAnim && m_pAnim->m_pHierarchy && m_pAnim->m_pHierarchy->m_fTotalTime > 0.0f)
-    {
-        animProgress = m_pAnim->m_fCurrentTime / m_pAnim->m_pHierarchy->m_fTotalTime;
-    }
-    
-    // Once animation is complete (or nearly complete), lock to final position
-    // This ensures perfect positioning at the end
-    if (animProgress >= 0.95f)
-    {
-        ped->SetPosn(finalPos);
-    }
-    // Otherwise: let animation root motion handle movement
-}
+// SyncPositionToGrabber removed - now using CTaskUtilityLineUpPedWithPed via SetPedPosition
 
 // ============================================================================
 // Animation Callbacks
@@ -466,5 +422,72 @@ void CTaskSimpleGrabbed::OnAnimDeleted(CAnimBlendAssociation* anim, void* data)
     {
         // Normal release - animation blending out, now finished
         task->m_state = eGrabbedState::FINISHED;
+    }
+}
+
+// ============================================================================
+// Reaction Animation (called by grabber when performing actions)
+// ============================================================================
+
+void CTaskSimpleGrabbed::PlayReactionAnimation(const char* animName)
+{
+    if (!m_pVictimPed || !m_pVictimPed->m_pRwClump || !animName)
+    {
+        return;
+    }
+
+    // Get animation block
+    CAnimBlock* animBlock = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME);
+    if (!animBlock)
+    {
+        return;
+    }
+
+    // Get the reaction animation
+    CAnimBlendHierarchy* hier = CAnimManager::GetAnimation(animName, animBlock);
+    if (!hier)
+    {
+        return;
+    }
+
+    // Stop current animation (idle) - just detach callback, NO blend delta
+    if (m_pAnim)
+    {
+        m_pAnim->SetDeleteCallback(NoOpAnimCallback, nullptr);
+    }
+
+    // Start reaction animation (will replace the idle)
+    // Reaction is a full-body animation that replaces idle
+    // ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
+    const int animFlags = 0x04;  // ANIMATION_IS_BLEND_AUTO_REMOVE
+    
+    m_pAnim = CAnimManager::BlendAnimation(m_pVictimPed->m_pRwClump, hier, animFlags, 8.0f);
+    if (m_pAnim)
+    {
+        // Make animation reference its own block (R* pattern)
+        m_pAnim->ReferenceAnimBlock();
+        
+        // Use delete callback - safer for victim anims that may be interrupted
+        m_pAnim->SetDeleteCallback(OnReactionAnimFinished, this);
+    }
+}
+
+void CTaskSimpleGrabbed::OnReactionAnimFinished(CAnimBlendAssociation* anim, void* data)
+{
+    CTaskSimpleGrabbed* task = static_cast<CTaskSimpleGrabbed*>(data);
+    if (!task)
+    {
+        return;
+    }
+
+    // CRITICAL: Clear pointer FIRST
+    task->m_pAnim = nullptr;
+
+    // If still grabbed, return to idle animation
+    if (task->m_state == eGrabbedState::GRABBED && task->m_pVictimPed)
+    {
+        // Set to play idle animation (not the initial grab animation)
+        task->m_bStartWithIdle = true;
+        task->StartGrabbedAnimation(task->m_pVictimPed);
     }
 }
