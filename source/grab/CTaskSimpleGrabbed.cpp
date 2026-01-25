@@ -48,16 +48,13 @@ CTaskSimpleGrabbed::CTaskSimpleGrabbed(CPed* pGrabber, CTaskSimpleGrab* pGrabber
     : CTaskSimple(plugin::dummy)
 {
     m_pParentTask = nullptr;
-    m_state = eGrabbedState::GRABBED;
+    m_state = eGrabbedState::INIT;
     m_pGrabber = pGrabber;
     m_pVictimPed = nullptr;  // Will be set in first ProcessPed call
     m_pGrabberTask = pGrabberTask;
     m_pAnim = nullptr;
     m_bAnimsReferenced = false;
     m_bCollisionDisabled = false;
-    
-    // Line-up utility (set by grabber task via SetLineUpUtility)
-    m_pLineUpUtility = nullptr;
     
     // Animation skip (synced with grabber)
     m_fAnimationSkip = 0.0f;
@@ -172,10 +169,9 @@ bool CTaskSimpleGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEven
 
 bool CTaskSimpleGrabbed::ProcessPed(CPed* ped)
 {
-    // Check if finished
     if (m_state == eGrabbedState::FINISHED)
     {
-        return true; // Task complete
+        return true;
     }
 
     // First frame: save ped pointer and disable collision
@@ -191,13 +187,6 @@ bool CTaskSimpleGrabbed::ProcessPed(CPed* ped)
         }
     }
 
-    // Check if finished
-    if (m_state == eGrabbedState::FINISHED)
-    {
-        return true;
-    }
-
-    // Check if grabber is still valid
     if (!m_pGrabber || m_pGrabber->m_fHealth <= 0.0f)
     {
         OnReleased();
@@ -220,36 +209,72 @@ bool CTaskSimpleGrabbed::ProcessPed(CPed* ped)
         StartGrabbedAnimation(ped);
     }
 
-    // Position is handled by SetPedPosition via the line-up utility
-
     return false; // Continue task
 }
 
 bool CTaskSimpleGrabbed::SetPedPosition(CPed* ped)
 {
-    // R* always checks for null ped
-    if (!ped)
+    // Only control position during INIT (grabbing) and GRABBED (holding) states
+    if (!ped || !m_pGrabber)
     {
         return false;
     }
     
-    // Use line-up utility for animation-synced positioning
-    // This is the KEY fix - we return true to indicate we control position
-    // and use the utility to smoothly interpolate based on animation progress
+    // Calculate offset based on state
+    float offsetForward = FINAL_OFFSET_FORWARD;  // Default to final position
     
-    if (m_state == eGrabbedState::GRABBED && m_pGrabber && m_pLineUpUtility)
+    if (m_state == eGrabbedState::INIT && m_pAnim && m_pAnim->m_pHierarchy)
     {
-        // Get our current animation for progress calculation
-        CAnimBlendAssociation* animToUse = m_pAnim;
+        // During grab animation: lerp from start to final position based on anim progress
+        float totalTime = m_pAnim->m_pHierarchy->m_fTotalTime;
+        float progress = (totalTime > 0.0f) ? (m_pAnim->m_fCurrentTime / totalTime) : 1.0f;
         
-        // Use the line-up utility to position victim relative to grabber
-        // based on animation progress
-        bool positioned = m_pLineUpUtility->ProcessPed(ped, m_pGrabber, animToUse);
+        // Clamp progress to [0, 1]
+        if (progress < 0.0f) progress = 0.0f;
+        progress += 0.4;
+        if (progress > 1.0f) progress = 1.0f;
         
-        return positioned;  // Return true if we positioned the ped
+        // Lerp: start + (end - start) * progress
+        offsetForward = START_OFFSET_FORWARD + (FINAL_OFFSET_FORWARD - START_OFFSET_FORWARD) * progress;
+    }
+    else if (m_state == eGrabbedState::GRABBED)
+    {
+        // During idle/holding: fixed position at final offset
+        offsetForward = FINAL_OFFSET_FORWARD;
+    }
+    else
+    {
+        // Other states (RELEASED, FINISHED): don't control position
+        return false;
     }
     
-    return false;  // Let game handle position if not grabbed or no utility
+    // Get grabber position and heading
+    CVector grabberPos = m_pGrabber->GetPosition();
+    float heading = m_pGrabber->m_fCurrentRotation;
+    
+    // Calculate world position from local offset
+    // In GTA SA: +Y is forward, heading 0 = facing +Y
+    // Forward direction: (-sin(heading), cos(heading))
+    float sinH = sinf(heading);
+    float cosH = cosf(heading);
+    
+    CVector victimPos;
+    victimPos.x = grabberPos.x + (-sinH * offsetForward);
+    victimPos.y = grabberPos.y + (cosH * offsetForward);
+    victimPos.z = grabberPos.z + OFFSET_Z;
+    
+    ped->SetPosn(victimPos);
+    
+    // Face opposite to grabber (victim faces the grabber)
+    float victimHeading = heading + 3.14159265f;
+    // Normalize to [-PI, PI]
+    while (victimHeading > 3.14159265f) victimHeading -= 6.28318530f;
+    while (victimHeading < -3.14159265f) victimHeading += 6.28318530f;
+    
+    ped->m_fCurrentRotation = victimHeading;
+    ped->m_fAimingRotation = victimHeading;
+    
+    return true;  // We handled the position - override animation root motion
 }
 
 // ============================================================================
@@ -258,7 +283,6 @@ bool CTaskSimpleGrabbed::SetPedPosition(CPed* ped)
 
 void CTaskSimpleGrabbed::OnReleased()
 {
-    m_pLineUpUtility = nullptr;
     m_pGrabber = nullptr;
     m_pGrabberTask = nullptr;
     
@@ -340,6 +364,8 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
         return;
     }
 
+    RpAnimBlendClumpSetBlendDeltas(ped->m_pRwClump, ANIMATION_PARTIAL, -8.0f);
+
     CAnimBlock* animBlock = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME);
     if (!animBlock)
     {
@@ -363,7 +389,9 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
     // - Full-body grabbed animation (not partial)
     // - For idle: add ANIMATION_IS_LOOPED (0x02)
 
-    int animFlags = m_bStartWithIdle ? ANIMATION_LOOPED : 0x0;
+    int animFlags = m_bStartWithIdle ? ANIMATION_LOOPED : ANIMATION_FREEZE_TRANSLATION;
+
+    animFlags |= ANIMATION_STARTED;
 
     // Blend in with high priority to override any other animations
     m_pAnim = CAnimManager::BlendAnimation(ped->m_pRwClump, hier, animFlags, blendDelta);
@@ -382,23 +410,29 @@ void CTaskSimpleGrabbed::StartGrabbedAnimation(CPed* ped)
             m_pAnim->SetCurrentTime(skipTime);
         }
         
-        // If starting with idle, lock position immediately via utility
-        if (m_bStartWithIdle && m_pLineUpUtility)
-        {
-            m_pLineUpUtility->LockPosition();
-        }
-        
         // Use SetDeleteCallback - fires when anim is deleted for ANY reason
         // This is safer for victim since animation can be interrupted by combat/damage
         m_pAnim->SetDeleteCallback(OnAnimDeleted, this);
+
+        if (animName == ANIM_GRABBED) {
+            m_pAnim->SetFinishCallback(OnGrabbedAnimFinish, this);
+        }
     }
 }
-
-// SyncPositionToGrabber removed - now using CTaskUtilityLineUpPedWithPed via SetPedPosition
 
 // ============================================================================
 // Animation Callbacks
 // ============================================================================
+
+void CTaskSimpleGrabbed::OnGrabbedAnimFinish(CAnimBlendAssociation* anim, void* data) {
+    CTaskSimpleGrabbed* task = static_cast<CTaskSimpleGrabbed*>(data);
+    if (!task)
+    {
+        return;
+    }
+
+    task->m_state = eGrabbedState::GRABBED;
+}
 
 void CTaskSimpleGrabbed::OnAnimDeleted(CAnimBlendAssociation* anim, void* data)
 {
@@ -455,13 +489,8 @@ void CTaskSimpleGrabbed::PlayReactionAnimation(const char* animName)
     {
         m_pAnim->SetDeleteCallback(NoOpAnimCallback, nullptr);
     }
-
-    // Start reaction animation (will replace the idle)
-    // Reaction is a full-body animation that replaces idle
-    // ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
-    const int animFlags = 0x04;  // ANIMATION_IS_BLEND_AUTO_REMOVE
     
-    m_pAnim = CAnimManager::BlendAnimation(m_pVictimPed->m_pRwClump, hier, animFlags, 8.0f);
+    m_pAnim = CAnimManager::BlendAnimation(m_pVictimPed->m_pRwClump, hier, ANIMATION_PARTIAL | ANIMATION_UNLOCK_LAST_FRAME, 8.0f);
     if (m_pAnim)
     {
         // Make animation reference its own block (R* pattern)
@@ -479,6 +508,8 @@ void CTaskSimpleGrabbed::OnReactionAnimFinished(CAnimBlendAssociation* anim, voi
     {
         return;
     }
+
+    anim->m_fBlendDelta = -4.0f;
 
     // CRITICAL: Clear pointer FIRST
     task->m_pAnim = nullptr;

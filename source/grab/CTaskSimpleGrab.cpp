@@ -57,7 +57,6 @@ CTaskSimpleGrab::CTaskSimpleGrab()
     m_pAnim = nullptr;
     m_bAnimsReferenced = false;
     m_fGrabDistance = 0.0f;
-    m_pLineUpUtility = nullptr;
 }
 
 // ============================================================================
@@ -102,13 +101,6 @@ CTaskSimpleGrab::~CTaskSimpleGrab()
     {
         m_pVictimTask->OnReleased();
         m_pVictimTask = nullptr;
-    }
-    
-    // Clean up line-up utility
-    if (m_pLineUpUtility)
-    {
-        delete m_pLineUpUtility;
-        m_pLineUpUtility = nullptr;
     }
 }
 
@@ -439,33 +431,6 @@ float CTaskSimpleGrab::CalculateAnimSkip(float distance) const
     return skipAmount;
 }
 
-void CTaskSimpleGrab::CreateLineUpUtility(float distance)
-{
-    // Clean up existing utility if any
-    if (m_pLineUpUtility)
-    {
-        delete m_pLineUpUtility;
-        m_pLineUpUtility = nullptr;
-    }
-    
-    // Calculate start and end offsets in local space (relative to grabber)
-    // Local space: X = right, Y = forward, Z = up
-    
-    // Start offset: Where victim starts (further away based on distance)
-    // The victim starts at the actual distance from grabber
-    CVector startOffset(0.0f, distance, 0.0f);
-    
-    // End offset: Where victim ends up when fully grabbed (holding position)
-    CVector endOffset(0.0f, VICTIM_OFFSET_FORWARD, VICTIM_OFFSET_Z);
-    
-    // Create the utility with reach end progress matching our animation phase
-    m_pLineUpUtility = new CTaskUtilityLineUpPedWithPed(
-        startOffset,
-        endOffset,
-        REACH_END_PROGRESS  // Position locks at this animation progress
-    );
-}
-
 void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float distance)
 {
     if (!grabber || !victim || !grabber->m_pRwClump || !victim->m_pRwClump)
@@ -481,10 +446,6 @@ void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float dis
     // ========== 1. SET COLLISION IGNORE (both ways) ==========
     grabber->m_pEntityIgnoredCollision = victim;
     victim->m_pEntityIgnoredCollision = grabber;
-
-    // ========== 2. CREATE LINE-UP UTILITY ==========
-    // This handles animation-synced positioning of the victim
-    CreateLineUpUtility(distance);
 
     // ========== 3. GET ANIMATION BLOCK ==========
     CAnimBlock* animBlock = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME);
@@ -504,13 +465,7 @@ void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float dis
         // Very close = faster blend (snappier)
         float blendDelta = (skipAmount > 0.4f) ? 16.0f : 8.0f;
         
-        // Animation flags:
-        // - NOT using ANIMATION_PARTIAL (0x10) - this is a full-body animation
-        // - ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
-        // - No velocity extraction needed for grabber
-        const int animFlags = 0x04;  // ANIMATION_IS_BLEND_AUTO_REMOVE
-        
-        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, grabHier, animFlags, blendDelta);
+        m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, grabHier, ANIMATION_FREEZE_LAST_FRAME, blendDelta); // 0x04; ANIMATION_IS_BLEND_AUTO_REMOVE
         
         if (m_pAnim)
         {
@@ -540,9 +495,6 @@ void CTaskSimpleGrab::StartGrabWithVictim(CPed* grabber, CPed* victim, float dis
     }
     
     m_pVictimTask = new CTaskSimpleGrabbed(grabber, this);
-    
-    // Pass the line-up utility to the victim task for position synchronization
-    m_pVictimTask->SetLineUpUtility(m_pLineUpUtility);
     
     // Pass the skip amount to the victim task so it can sync its animation
     m_pVictimTask->SetAnimationSkip(skipAmount);
@@ -590,16 +542,15 @@ void CTaskSimpleGrab::StartGrabNoVictim(CPed* grabber)
 
 void CTaskSimpleGrab::AbortGrab()
 {
-    // R* pattern for custom animation blocks: just detach callback, NO blend delta
     if (m_pAnim)
     {
         if (m_pGrabber && m_pGrabber->m_pRwClump)
         {
             CAnimManager::BlendAnimation(
                 m_pGrabber->m_pRwClump,
-                m_pGrabber->m_nAnimGroup,  // Usually ANIM_GROUP_DEFAULT or ped's anim group
+                m_pGrabber->m_nAnimGroup,
                 ANIM_DEFAULT_IDLE_STANCE,
-                1000.0f  // Positive blend delta for blend-in speed
+                8.0f
             );
         }
 
@@ -624,9 +575,18 @@ void CTaskSimpleGrab::OnVictimLost()
 
 void CTaskSimpleGrab::ReleaseVictim()
 {
-    // R* pattern for custom animation blocks: just detach callback, NO blend delta
     if (m_pAnim)
     {
+        if (m_pGrabber && m_pGrabber->m_pRwClump)
+        {
+            CAnimManager::BlendAnimation(
+                m_pGrabber->m_pRwClump,
+                m_pGrabber->m_nAnimGroup,
+                ANIM_DEFAULT_IDLE_STANCE,
+                8.0f
+            );
+        }
+
         m_pAnim->SetFinishCallback(NoOpAnimCallback, nullptr);
         m_pAnim = nullptr;
     }
@@ -668,14 +628,6 @@ void CTaskSimpleGrab::StartHoldingImmediate(CPed* grabber, CPed* victim)
     grabber->m_pEntityIgnoredCollision = victim;
     victim->m_pEntityIgnoredCollision = grabber;
 
-    // ========== 2. CREATE LINE-UP UTILITY (already at end position) ==========
-    // For immediate hold, start and end are the same (no interpolation needed)
-    CreateLineUpUtility(0.0f);  // Distance 0 means already at holding position
-    if (m_pLineUpUtility)
-    {
-        m_pLineUpUtility->LockPosition();  // Lock to end position immediately
-    }
-
     // ========== 3. START IDLE ANIMATIONS ==========
     StartIdleAnimations(grabber);
 
@@ -688,12 +640,11 @@ void CTaskSimpleGrab::StartHoldingImmediate(CPed* grabber, CPed* victim)
     }
     
     m_pVictimTask = new CTaskSimpleGrabbed(grabber, this);
-    m_pVictimTask->SetLineUpUtility(m_pLineUpUtility);  // Use line-up utility for positioning
     m_pVictimTask->SetAnimationSkip(1.0f);  // Skip to end = idle
     m_pVictimTask->SetStartWithIdle(true);  // Start with idle animation directly
 
     CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
-    taskMgr->SetTask((CTask*)m_pVictimTask, TASK_PRIMARY_PHYSICAL_RESPONSE, false);
+    taskMgr->SetTask(m_pVictimTask, TASK_PRIMARY_PHYSICAL_RESPONSE, false);
 }
 
 void CTaskSimpleGrab::StartIdleAnimations(CPed* grabber)
@@ -714,9 +665,8 @@ void CTaskSimpleGrab::StartIdleAnimations(CPed* grabber)
     {
         // Idle animation flags:
         // - ANIMATION_IS_LOOPED (0x02) - loops continuously
-        // - ANIMATION_IS_BLEND_AUTO_REMOVE (0x04) - auto-delete when blended out
         // Note: Idle is a full-body animation, not partial
-        const int animFlags = 0x02 | 0x04;  // ANIMATION_IS_LOOPED | ANIMATION_IS_BLEND_AUTO_REMOVE
+        const int animFlags = ANIMATION_LOOPED | 0x04;  // ANIMATION_IS_LOOPED | ANIMATION_IS_BLEND_AUTO_REMOVE
         
         m_pAnim = CAnimManager::BlendAnimation(grabber->m_pRwClump, idleHier, animFlags, 8.0f);
         
@@ -809,7 +759,7 @@ void CTaskSimpleGrab::StartAction(eGrabAction action)
     }
 
     // Start grabber's action animation (will replace the idle)
-    m_pAnim = CAnimManager::BlendAnimation(m_pGrabber->m_pRwClump, grabberHier, ANIMATION_PARTIAL, 8.0f);
+    m_pAnim = CAnimManager::BlendAnimation(m_pGrabber->m_pRwClump, grabberHier, 0x0, 8.0f);
     if (m_pAnim)
     {
         // Make animation reference its own block (R* pattern)

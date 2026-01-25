@@ -45,9 +45,6 @@
     <ClCompile Include="source\grab\CTaskSimpleGrabbed.cpp">
       <Filter>source\grab</Filter>
     </ClCompile>
-    <ClCompile Include="source\grab\CTaskUtilityLineUpPedWithPed.cpp">
-      <Filter>source\grab</Filter>
-    </ClCompile>
     <ClCompile Include="source\ButtonIcons.cpp">
       <Filter>source\button-icons</Filter>
     </ClCompile>

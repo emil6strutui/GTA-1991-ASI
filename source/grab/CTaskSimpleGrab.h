@@ -5,7 +5,6 @@
 #include <CPed.h>
 #include <CAnimBlendAssociation.h>
 #include <PadFix.h>
-#include "CTaskUtilityLineUpPedWithPed.h"
 
 
 // Forward declaration
@@ -79,9 +78,6 @@ private:
     CAnimBlendAssociation* m_pAnim;         // Current animation
     bool m_bAnimsReferenced;                // Whether we've added anim block ref
     float m_fGrabDistance;                  // Distance to victim when grabbed (for animation skip)
-    
-    // Line-up utility for animation-synced victim positioning
-    CTaskUtilityLineUpPedWithPed* m_pLineUpUtility;
 
 public:
     // ========== Constructor/Destructor ==========
@@ -123,9 +119,6 @@ private:
     
     // Calculate animation skip based on distance
     float CalculateAnimSkip(float distance) const;
-    
-    // Create line-up utility for victim positioning
-    void CreateLineUpUtility(float distance);
     
     // ========== Action Methods ==========
     bool IsAttackPressed() const;           // Check if LMB is pressed

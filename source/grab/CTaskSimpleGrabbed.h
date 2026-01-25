@@ -5,8 +5,6 @@
 #include <CPed.h>
 #include <CAnimBlendAssociation.h>
 
-#include "CTaskUtilityLineUpPedWithPed.h"
-
 // Forward declaration
 class CTaskSimpleGrab;
 
@@ -23,6 +21,7 @@ public:
     // ========== State ==========
     enum class eGrabbedState : unsigned char
     {
+        INIT,
         GRABBED,       // Being held, syncing position
         RELEASED,      // Grabber released us
         FINISHED       // Task complete
@@ -36,6 +35,11 @@ public:
     
     // How much forward distance the grab animation covers (root motion)
     static constexpr float ANIM_FORWARD_DISTANCE = 0.1f;
+    
+    // Position offset constants for SetPedPosition
+    static constexpr float START_OFFSET_FORWARD = 1.6f;   // Starting distance (GRAB_RANGE)
+    static constexpr float FINAL_OFFSET_FORWARD = 0.5f;   // Final holding distance
+    static constexpr float OFFSET_Z = 0.0f;               // Z offset (height adjustment)
 
 private:
     // ========== Members ==========
@@ -46,9 +50,6 @@ private:
     CAnimBlendAssociation* m_pAnim;         // Current animation
     bool m_bAnimsReferenced;                // Whether we've added anim block ref
     bool m_bCollisionDisabled;              // Whether we've disabled collision
-    
-    // Line-up utility for animation-synced positioning (owned by grabber task)
-    CTaskUtilityLineUpPedWithPed* m_pLineUpUtility;
     
     // Animation skip (0-1, synced with grabber's skip based on distance)
     float m_fAnimationSkip;
@@ -80,9 +81,6 @@ public:
     // Called by grabber task when releasing
     void OnReleased();
     
-    // Set line-up utility for position synchronization (owned by grabber task, NOT us)
-    void SetLineUpUtility(CTaskUtilityLineUpPedWithPed* utility) { m_pLineUpUtility = utility; }
-    
     // Set animation skip amount (synced with grabber)
     void SetAnimationSkip(float skip);
     
@@ -98,6 +96,7 @@ private:
     void StartGrabbedAnimation(CPed* ped);
     
     // ========== Animation Callbacks ==========
+    static void OnGrabbedAnimFinish(CAnimBlendAssociation* anim, void* data);
     static void OnAnimDeleted(CAnimBlendAssociation* anim, void* data);
     static void OnReactionAnimFinished(CAnimBlendAssociation* anim, void* data);
 };

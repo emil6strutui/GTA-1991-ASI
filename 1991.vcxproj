@@ -133,7 +133,6 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     <ClCompile Include="source\ButtonIcons.cpp" />
     <ClCompile Include="source\grab\CTaskSimpleGrabbed.cpp" />
     <ClCompile Include="source\grab\CTaskSimpleGrab.cpp" />
-    <ClCompile Include="source\grab\CTaskUtilityLineUpPedWithPed.cpp" />
     <ClCompile Include="source\Main.cpp" />
     <ClCompile Include="source\hud\CHud1991.cpp" />
     <ClCompile Include="source\Markers.cpp" />
