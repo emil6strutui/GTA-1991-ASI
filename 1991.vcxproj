@@ -131,8 +131,13 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="source\ButtonIcons.cpp" />
-    <ClCompile Include="source\grab\CTaskSimpleGrabbed.cpp" />
-    <ClCompile Include="source\grab\CTaskSimpleGrab.cpp" />
+    <ClCompile Include="source\grab\CPostGrabReaction.cpp" />
+    <ClCompile Include="source\grab\CTaskComplexGrab.cpp" />
+    <ClCompile Include="source\grab\CTaskComplexGrabbed.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabbedHeld.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabbedReach.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabHold.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabReach.cpp" />
     <ClCompile Include="source\Main.cpp" />
     <ClCompile Include="source\hud\CHud1991.cpp" />
     <ClCompile Include="source\Markers.cpp" />
@@ -142,7 +147,18 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\GInputAPI.h" />
-    <ClInclude Include="source\grab\PadFix.h" />
+    <ClInclude Include="source\grab\CPostGrabReaction.h" />
+    <ClInclude Include="source\grab\CTaskComplexCustomBase.h" />
+    <ClInclude Include="source\grab\CTaskComplexGrab.h" />
+    <ClInclude Include="source\grab\CTaskComplexGrabbed.h" />
+    <ClInclude Include="source\grab\CTaskCustomBase.h" />
+    <ClInclude Include="source\grab\CTaskSimpleCustomBase.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabbedHeld.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabbedReach.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabHold.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabReach.h" />
+    <ClInclude Include="source\grab\GrabAnimations.h" />
+    <ClInclude Include="source\grab\GrabContext.h" />
     <ClInclude Include="source\hud\CHud1991.h" />
     <ClInclude Include="source\hud\CHudLayout1991.h" />
     <ClInclude Include="source\hud\CDrawing1991.h" />
@@ -152,8 +168,6 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     <ClInclude Include="source\keybindings\CKeybindings.h" />
     <ClInclude Include="source\keybindings\CKeybindingsConfig.h" />
     <ClInclude Include="source\grab\CGrabSystem.h" />
-    <ClInclude Include="source\grab\CTaskSimpleGrab.h" />
-    <ClInclude Include="source\grab\CTaskSimpleGrabbed.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
