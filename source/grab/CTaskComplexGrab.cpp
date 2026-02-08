@@ -10,6 +10,8 @@
 #include <numbers>
 #include <cmath>
 #include <algorithm>
+#include <CAnimManager.h>
+#include <GrabAnimations.h>
 
 using namespace plugin;
 
@@ -87,7 +89,7 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
         return CreateHoldTask();
 
     case CGrabContext::eGrabPhase::RELEASING:
-    case CGrabContext::eGrabPhase::FINISHED:
+    case CGrabContext::eGrabPhase::FINISHED: 
         m_bFinished = true;
         return nullptr;
 
@@ -99,25 +101,50 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
 
 CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
 {
-    if (!m_pContext || !m_pContext->IsValid()) {
+    if (!m_pContext) {
         m_bFinished = true;
         return nullptr;
     }
 
-    // Check for release/finish - external condition (player pressed release key)
+    CPed* victim = m_pContext->GetVictim();
+    if (victim && victim->m_fHealth <= 0.0f) {
+        m_pContext->Release();
+        Cleanup();
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    if (!m_pContext->IsValid()) {
+        m_bFinished = true;
+        return nullptr;
+    }
+
     auto phase = m_pContext->GetPhase();
     if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
+        CAnimBlendHierarchy* hier = GrabAnimations::GetAnimation(GrabAnimations::ANIM_GRAB_RELEASE);
+        if (hier) {
+            auto releaseAnimation = CAnimManager::BlendAnimation(
+                ped->m_pRwClump,
+                hier,
+                ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE,
+                8.0f
+            );
+            
+            releaseAnimation->m_fSpeed = 1.2;
+            releaseAnimation->SetFinishCallback([](CAnimBlendAssociation* anim, void*) {
+                if (anim) {
+                    anim->m_fBlendDelta = -8.0f;
+                }
+            }, nullptr);
+        }
         m_bFinished = true;
         return nullptr;
     }
 
     const auto subTaskType = m_pSubTask->GetId();
 
-    // Check for attack input during holding phase - external condition (player pressed attack)
-    if (subTaskType == CGrabContext::TASK_SIMPLE_GRAB_HOLD) {
+    if (subTaskType == CGrabContext::TASK_SIMPLE_GRAB_HOLD && phase == CGrabContext::eGrabPhase::HOLDING) {
         if (IsAttackPressed()) {
-            // RequestAction sets phase to ACTION and stores the pending action
-            // for the victim to consume. We pass the action directly to our task.
             m_pContext->RequestAction(CGrabContext::eGrabAction::JAB);
             return CreateActionTask(CGrabContext::eGrabAction::JAB);
         }
@@ -268,7 +295,6 @@ void CTaskComplexGrab::Cleanup()
         m_pContext->SetGrabberActive(false);
         m_pContext->Abort();
     }
-    // Don't set m_pSubTask = nullptr - let game's task manager handle subtask cleanup
 }
 
 bool CTaskComplexGrab::IsAttackPressed() const

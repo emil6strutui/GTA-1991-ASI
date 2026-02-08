@@ -63,6 +63,9 @@ private:
     bool m_bAborted = false;
     bool m_bGrabberReachComplete = false;
     bool m_bVictimReachComplete = false;
+    bool m_bHitConnected = false;
+    bool m_bGrabberActionComplete = false;
+    bool m_bVictimActionComplete = false;
 
 public:
     CGrabContext() : m_nStartTime(CTimer::m_snTimeInMilliseconds) {}
@@ -132,11 +135,23 @@ public:
         }
     }
 
+    // Hit signal - grabber signals when the punch connects, victim consumes it
+    void SignalHitConnected() { m_bHitConnected = true; }
+    bool ConsumeHitConnected() {
+        if (m_bHitConnected) {
+            m_bHitConnected = false;
+            return true;
+        }
+        return false;
+    }
+
     // Action management
     void RequestAction(eGrabAction action) {
         if (m_phase == eGrabPhase::HOLDING) {
             m_pendingAction = action;
             m_phase = eGrabPhase::ACTION;
+            m_bGrabberActionComplete = false;
+            m_bVictimActionComplete = false;
         }
     }
 
@@ -149,11 +164,18 @@ public:
 
     [[nodiscard]] eGrabAction GetCurrentAction() const { return m_currentAction; }
 
-    void OnActionComplete() {
-        m_currentAction = eGrabAction::NONE;
-        if (m_phase == eGrabPhase::ACTION) {
-            m_phase = eGrabPhase::HOLDING;
-        }
+    // Dual action-completion tracking.
+    // Phase stays ACTION until BOTH sides finish their animation.
+    // This prevents the grabber from starting a new jab while the
+    // victim's hit-reaction is still playing.
+    void OnGrabberActionComplete() {
+        m_bGrabberActionComplete = true;
+        TryCompleteAction();
+    }
+
+    void OnVictimActionComplete() {
+        m_bVictimActionComplete = true;
+        TryCompleteAction();
     }
 
     // Reach completion tracking
@@ -195,6 +217,15 @@ public:
     [[nodiscard]] float GetAnimationSkip() const { return m_fAnimationSkip; }
 
 private:
+    void TryCompleteAction() {
+        if (m_bGrabberActionComplete && m_bVictimActionComplete) {
+            m_currentAction = eGrabAction::NONE;
+            if (m_phase == eGrabPhase::ACTION) {
+                m_phase = eGrabPhase::HOLDING;
+            }
+        }
+    }
+
     static constexpr float GRAB_RANGE = 1.5f;
     static constexpr float REACH_END_PROGRESS = 0.6f;
 

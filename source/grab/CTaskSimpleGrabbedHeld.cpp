@@ -25,7 +25,15 @@ CTaskSimpleGrabbedHeld::~CTaskSimpleGrabbedHeld()
 
 bool CTaskSimpleGrabbedHeld::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    // Held state is abortable
+
+    if (m_pContext && m_pContext->GetPhase() == CGrabContext::eGrabPhase::ACTION && m_pAnim) {
+        GrabAnimations::ReleaseAnimation(m_pAnim);
+
+        m_bFinished = true;
+        return true;
+    }
+
+    // Normal abort — blend out the idle animation
     Cleanup(ped);
     m_bFinished = true;
     return true;
@@ -89,6 +97,11 @@ void CTaskSimpleGrabbedHeld::StartIdleAnimation(CPed* ped)
         return;
     }
 
+    // BlendAnimation checks if an association with this hierarchy already exists
+    // on the clump.  If it does (e.g. we're returning from a hit task that kept
+    // the idle alive), it reuses it — just adjusting blend delta.  If not, it
+    // creates a new one.  ReferenceAnimBlock is guarded by ANIMATION_REFERENCE_BLOCK
+    // so calling it on a reused association is a harmless no-op.
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 

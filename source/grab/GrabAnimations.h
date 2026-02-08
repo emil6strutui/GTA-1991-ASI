@@ -20,15 +20,16 @@ namespace GrabAnimations
     static constexpr const char* ANIM_GRAB = "Fight_grab";
     static constexpr const char* ANIM_GRAB_IDLE = "Fight_grab_idle";
     static constexpr const char* ANIM_GRAB_JAB = "Fight_grab_jab";
-    static constexpr const char* ANIM_GRAB_THROW = "Fight_grab_throw";       // If exists
-    static constexpr const char* ANIM_GRAB_UPPERCUT = "Fight_grab_uppercut"; // If exists
+    static constexpr const char* ANIM_GRAB_RELEASE = "Fight_grb_r";
+    static constexpr const char* ANIM_GRAB_THROW = "Fight_grb_r";
+    static constexpr const char* ANIM_GRAB_UPPERCUT = "Fight_grab_stom";
 
     // Victim animations
     static constexpr const char* ANIM_GRABBED = "Fight_grabbed";
     static constexpr const char* ANIM_GRABBED_IDLE = "Fight_grabbed_idle";
     static constexpr const char* ANIM_GRABBED_JAB = "Fight_grabbed_jab";
-    static constexpr const char* ANIM_GRABBED_THROW = "Fight_grabbed_throw";       // If exists
-    static constexpr const char* ANIM_GRABBED_UPPERCUT = "Fight_grabbed_uppercut"; // If exists
+    static constexpr const char* ANIM_GRABBED_THROW = "Fight_grabbed_throw";
+    static constexpr const char* ANIM_GRABBED_UPPERCUT = "Fight_grabbed_stom";
 
     // Positioning constants
     static constexpr float START_OFFSET_FORWARD = 1.6f;
@@ -140,6 +141,23 @@ namespace GrabAnimations
         
         anim->SetFinishCallback(DefaultAnimCB, nullptr);
         anim->m_fBlendDelta = blendDelta;
+        anim = nullptr;
+    }
+
+    /**
+     * Release ownership of an animation without blending it out.
+     * The animation keeps playing on the clump. BLEND_AUTO_REMOVE is set
+     * as a safety net so the engine will clean it up if something later
+     * fades it (e.g. a new non-partial anim blends in after the grab ends).
+     */
+    inline void ReleaseAnimation(CAnimBlendAssociation*& anim) {
+        if (!anim) {
+            return;
+        }
+
+        anim->SetDeleteCallback(DefaultAnimCB, nullptr);
+        anim->SetFinishCallback(DefaultAnimCB, nullptr);
+        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
         anim = nullptr;
     }
 }

@@ -23,6 +23,7 @@ private:
     bool m_bAnimsReferenced = false;
     bool m_bFinished = false;
     bool m_bStarted = false;
+    bool m_bHitTriggered = false;
 
 public:
     CTaskSimpleGrabAction(GrabContextPtr context, CGrabContext::eGrabAction action);
@@ -39,6 +40,7 @@ public:
 
 private:
     void StartAnimation(CPed* ped);
+    void CheckHitTrigger(CPed* ped);
     void Cleanup();
     [[nodiscard]] const char* GetAnimationName() const;
     

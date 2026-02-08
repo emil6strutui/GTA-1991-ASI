@@ -66,6 +66,12 @@
     <ClCompile Include="source\grab\CTaskSimpleGrabReach.cpp">
       <Filter>source\grab</Filter>
     </ClCompile>
+    <ClCompile Include="source\grab\CTaskSimpleGrabAction.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
+    <ClCompile Include="source\grab\CTaskSimpleGrabbedHit.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\hud\CHud1991.h">
@@ -131,6 +137,14 @@
     <ClInclude Include="source\grab\CTaskComplexCustomBase.h">
       <Filter>source\grab</Filter>
     </ClInclude>
-    <ClInclude Include="source\grab\CTaskSimpleCustomBase.h" />
+    <ClInclude Include="source\grab\CTaskSimpleCustomBase.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
+    <ClInclude Include="source\grab\CTaskSimpleGrabAction.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
+    <ClInclude Include="source\grab\CTaskSimpleGrabbedHit.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -3,8 +3,14 @@
 
 #include <plugin.h>
 #include <CAnimManager.h>
+#include <CWeaponInfo.h>
+#include <CPedDamageResponseCalculator.h>
+#include <CPedDamageResponse.h>
 #include <numbers>
 #include <cmath>
+
+// Speech context for low pain (not in plugin-sdk enums)
+static constexpr unsigned short CTX_GLOBAL_PAIN_LOW = 345;
 
 CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(GrabContextPtr context, CGrabContext::eGrabAction hitType)
     : m_pContext(std::move(context))
@@ -39,7 +45,7 @@ bool CTaskSimpleGrabbedHit::MakeAbortable(CPed* ped, eAbortPriority priority, CE
     m_bFinished = true;
     
     if (m_pContext) {
-        m_pContext->OnActionComplete();
+        m_pContext->OnVictimActionComplete();
     }
     
     return true;
@@ -74,6 +80,9 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
         StartAnimation(ped);
         m_bStarted = true;
     }
+
+    // Check if the grabber signalled that the hit connected
+    CheckDamageTrigger(ped);
 
     return false;
 }
@@ -112,7 +121,7 @@ void CTaskSimpleGrabbedHit::StartAnimation(CPed* ped)
         ped->m_pRwClump, 
         hier, 
         ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE | ANIMATION_IGNORE_ROOT_TRANSLATION,
-        8.0f
+        4.0f
     );
 
     if (m_pAnim) {
@@ -121,6 +130,45 @@ void CTaskSimpleGrabbedHit::StartAnimation(CPed* ped)
     } else {
         m_bFinished = true;
     }
+}
+
+void CTaskSimpleGrabbedHit::CheckDamageTrigger(CPed* ped)
+{
+    if (m_bDamageApplied || !m_pContext || !ped) {
+        return;
+    }
+
+    // Poll the context for the hit signal from the grabber's action task
+    if (!m_pContext->ConsumeHitConnected()) {
+        return;
+    }
+
+    m_bDamageApplied = true;
+
+    CPed* grabber = m_pContext->GetGrabber();
+    if (!grabber) {
+        return;
+    }
+
+    ped->Say(CTX_GLOBAL_PAIN_LOW, 0, 1.0f, 0, 0, 0);
+
+    CWeaponInfo* weapInfo = CWeaponInfo::GetWeaponInfo(WEAPONTYPE_UNARMED);
+    float damage = weapInfo ? static_cast<float>(weapInfo->m_nDamage) : 5.0f;
+
+    CPedDamageResponseCalculator damageCalc(
+        reinterpret_cast<CEntity*>(grabber),
+        damage,
+        WEAPONTYPE_UNARMED,
+        PED_PIECE_ASS,
+        false
+    );
+
+    CPedDamageResponse response;
+    damageCalc.ComputeDamageResponse(ped, response, false);
+
+    // void __cdecl CCrime::ReportCrime(eCrimeType, CEntity* victim, CPed* committedBy)
+    static auto ReportCrime = reinterpret_cast<void(__cdecl*)(uint32_t, CEntity*, CPed*)>(0x532010);
+    ReportCrime(/*CRIME_DAMAGED_PED*/ 2, reinterpret_cast<CEntity*>(ped), grabber);
 }
 
 void CTaskSimpleGrabbedHit::Cleanup(CPed* ped)
@@ -194,8 +242,8 @@ void CTaskSimpleGrabbedHit::AnimFinishedCB(CAnimBlendAssociation*, void* data)
     task->m_pAnim = nullptr;
     task->m_bFinished = true;
 
-    // Signal completion - context will transition both tasks back to holding
+    // Signal victim side completion to context
     if (task->m_pContext) {
-        task->m_pContext->OnActionComplete();
+        task->m_pContext->OnVictimActionComplete();
     }
 }

@@ -24,6 +24,7 @@ private:
     bool m_bFinished = false;
     bool m_bStarted = false;
     bool m_bCollisionDisabled = false;
+    bool m_bDamageApplied = false;
 
 public:
     CTaskSimpleGrabbedHit(GrabContextPtr context, CGrabContext::eGrabAction hitType);
@@ -40,6 +41,7 @@ public:
 
 private:
     void StartAnimation(CPed* ped);
+    void CheckDamageTrigger(CPed* ped);
     void Cleanup(CPed* ped);
     void PositionVictim(CPed* ped) const;
     [[nodiscard]] const char* GetAnimationName() const;

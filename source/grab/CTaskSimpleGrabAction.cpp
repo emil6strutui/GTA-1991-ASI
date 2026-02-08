@@ -3,8 +3,23 @@
 
 #include <plugin.h>
 #include <CAnimManager.h>
+#include <CAnimBlendHierarchy.h>
+#include <eAudioEvents.h>
 
 using namespace plugin;
+
+// CAEPedAudioEntity::AddAudioEvent is not declared in plugin-sdk, call via raw address
+using FnAddAudioEvent = void(__thiscall*)(
+    void* thisPtr,          // CAEPedAudioEntity*
+    int32_t event,          // eAudioEvents
+    float volume,
+    float speed,
+    void* physical,         // CPhysical* (victim for hit events)
+    int32_t surfaceId,
+    int32_t a7,
+    uint32_t maxVol
+);
+static auto PedAudio_AddAudioEvent = reinterpret_cast<FnAddAudioEvent>(0x4E2BB0);
 
 CTaskSimpleGrabAction::CTaskSimpleGrabAction(GrabContextPtr context, CGrabContext::eGrabAction action)
     : m_pContext(std::move(context))
@@ -36,7 +51,7 @@ bool CTaskSimpleGrabAction::MakeAbortable(CPed* ped, eAbortPriority priority, CE
     m_bFinished = true;
     
     if (m_pContext) {
-        m_pContext->OnActionComplete();
+        m_pContext->OnGrabberActionComplete();
     }
     
     return true;
@@ -65,6 +80,9 @@ bool CTaskSimpleGrabAction::ProcessPed(CPed* ped)
         StartAnimation(ped);
         m_bStarted = true;
     }
+
+    // Check if the punch connects at 70% of the animation
+    CheckHitTrigger(ped);
 
     // Lock rotation
     ped->m_fAimingRotation = ped->m_fCurrentRotation;
@@ -106,6 +124,40 @@ void CTaskSimpleGrabAction::StartAnimation(CPed* ped)
     }
 }
 
+void CTaskSimpleGrabAction::CheckHitTrigger(CPed* ped)
+{
+    if (m_bHitTriggered || !m_pAnim || !m_pContext) {
+        return;
+    }
+
+    // Calculate the 60% mark of the animation
+    float totalTime = m_pAnim->m_pHierarchy->m_fTotalTime;
+    float hitTime = totalTime * 0.6f;
+
+    // Frame-crossing detection: did we cross the hit point THIS frame?
+    // Same pattern as TaskSimpleThrowProjectile in the game
+    if (hitTime < m_pAnim->m_fCurrentTime
+        && (m_pAnim->m_fCurrentTime - m_pAnim->fTimeStep) <= hitTime)
+    {
+        m_bHitTriggered = true;
+
+        // Play punch impact SFX on the attacker's audio entity
+        CPed* victim = m_pContext->GetVictim();
+        PedAudio_AddAudioEvent(
+            &ped->m_pedAudio,
+            AE_PED_HIT_HIGH_UNARMED,   // 0x41 - unarmed punch, high
+            0.0f,                       // volume (default)
+            1.0f,                       // speed (default)
+            victim,                     // victim physical for impact
+            0,                          // surface (default)
+            0, 0                        // extra params
+        );
+
+        // Signal to victim's task that the hit connected
+        m_pContext->SignalHitConnected();
+    }
+}
+
 void CTaskSimpleGrabAction::Cleanup()
 {
     GrabAnimations::CleanupAnimation(m_pAnim);
@@ -136,8 +188,8 @@ void CTaskSimpleGrabAction::AnimFinishedCB(CAnimBlendAssociation*, void* data)
     task->m_pAnim = nullptr;
     task->m_bFinished = true;
 
-    // Signal action completion to context
+    // Signal grabber side completion to context
     if (task->m_pContext) {
-        task->m_pContext->OnActionComplete();
+        task->m_pContext->OnGrabberActionComplete();
     }
 }
