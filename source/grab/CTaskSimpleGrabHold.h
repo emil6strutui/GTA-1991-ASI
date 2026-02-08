@@ -30,7 +30,6 @@ public:
     bool ProcessPed(CPed* ped) override;
 
     bool IsFinished() const { return m_bFinished; }
-    bool ShouldTransitionToAction() const;
 
 private:
     void StartIdleAnimation(CPed* ped);

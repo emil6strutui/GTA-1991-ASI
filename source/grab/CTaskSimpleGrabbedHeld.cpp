@@ -44,20 +44,8 @@ bool CTaskSimpleGrabbedHeld::ProcessPed(CPed* ped)
         return true;
     }
 
-    // Check for transition to hit or release
-    if (ShouldTransitionToHit()) {
-        m_bFinished = true;
-        return true;
-    }
-
-    // Check for release
-    auto phase = m_pContext->GetPhase();
-    if (phase == CGrabContext::eGrabPhase::RELEASING ||
-        phase == CGrabContext::eGrabPhase::FINISHED) {
-        Cleanup(ped);
-        m_bFinished = true;
-        return true;
-    }
+    // Phase transitions (release, action) are handled by the complex task's
+    // ControlSubTask before ProcessPed runs. This task just plays the idle anim.
 
     // Maintain collision disable
     if (!m_bCollisionDisabled && ped && ped->bCollidable) {
@@ -88,14 +76,6 @@ bool CTaskSimpleGrabbedHeld::SetPedPosition(CPed* ped)
     // Always control position during held phase
     PositionVictim(ped);
     return true;
-}
-
-bool CTaskSimpleGrabbedHeld::ShouldTransitionToHit() const
-{
-    if (!m_pContext) {
-        return false;
-    }
-    return m_pContext->GetPhase() == CGrabContext::eGrabPhase::ACTION;
 }
 
 void CTaskSimpleGrabbedHeld::StartIdleAnimation(CPed* ped)

@@ -11,6 +11,15 @@ using namespace plugin;
 
 namespace CGrabSystem
 {
+
+    static int s_debugCountdown = -1;
+    static CPed* s_debugPed = nullptr;
+
+    void StartDelayedDebug(CPed* ped, int frames = 60) {
+        s_debugPed = ped;
+        s_debugCountdown = frames;
+    }
+
     static CPlayerPed* GetPlayer() {
         return FindPlayerPed(0);
     }
@@ -75,6 +84,46 @@ namespace CGrabSystem
 
     static void OnGameProcess()
     {
+
+        if (s_debugCountdown > 0) {
+            s_debugCountdown--;
+        }
+        else if (s_debugCountdown == 0) {
+            s_debugCountdown = -1;
+            if (s_debugPed && s_debugPed->m_pIntelligence) {
+                CTaskManager* taskMgr = &s_debugPed->m_pIntelligence->m_TaskMgr;
+
+                // Debug: print task types
+                char buf[512];
+                for (int i = 0; i < 5; i++) {
+                    CTask* task = taskMgr->m_aPrimaryTasks[i];
+                    if (task) {
+                        sprintf(buf, "Slot[%d]: ptr=%p type=%d\n", i, task, task->GetId());
+                        OutputDebugStringA(buf);
+                    }
+                }
+
+                if (!s_debugPed || !s_debugPed->m_pRwClump) return;
+
+                OutputDebugStringA("=== Current Animations ===\n");
+                CAnimBlendAssociation* assoc = RpAnimBlendClumpGetFirstAssociation(s_debugPed->m_pRwClump);
+                int count = 0;
+
+                while (assoc) {
+                    char buf[256];
+                    sprintf(buf, "[%d] Blend: %.2f Delta: %.2f Flags: 0x%X\n",
+                        count, assoc->m_fBlendAmount, assoc->m_fBlendDelta, assoc->m_nFlags);
+                    OutputDebugStringA(buf);
+                    assoc = RpAnimBlendGetNextAssociation(assoc);
+                    count++;
+                }
+
+                if (count == 0) {
+                    OutputDebugStringA("NO ANIMATIONS!\n");
+                }
+            }
+        }
+
         if (!IsGrabKeyJustPressed()) {
             return;
         }

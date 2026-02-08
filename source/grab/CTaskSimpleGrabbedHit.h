@@ -1,7 +1,7 @@
 #pragma once
 
 #include <plugin.h>
-#include <CTaskSimple.h>
+#include <CTaskSimpleCustomBase.h>
 #include <CPed.h>
 #include <CAnimBlendAssociation.h>
 
@@ -11,7 +11,7 @@
  * Simple task for victim's reaction to being hit while grabbed.
  * Plays hit reaction animation then returns to held state.
  */
-class CTaskSimpleGrabbedHit : public CTaskSimple
+class CTaskSimpleGrabbedHit : public CTaskSimpleCustomBase
 {
 public:
     static constexpr eTaskType Type = CGrabContext::TASK_SIMPLE_GRABBED_HIT;
@@ -31,10 +31,7 @@ public:
     ~CTaskSimpleGrabbedHit() override;
 
     eTaskType GetId() override { return Type; }
-    CTask* GetSubTask() override { return nullptr; }
-    bool IsSimple() override { return true; }
-    void StopTimer(CEvent*) override { }
-    CTask* Clone() override { return new CTaskSimpleGrabbedHit(*this); }
+    CTask* Clone() override { return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedHit(*this)); }
     bool MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event) override;
     bool ProcessPed(CPed* ped) override;
     bool SetPedPosition(CPed* ped) override;

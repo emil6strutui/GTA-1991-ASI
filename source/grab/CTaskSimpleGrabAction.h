@@ -1,7 +1,7 @@
 #pragma once
 
 #include <plugin.h>
-#include <CTaskSimple.h>
+#include <CTaskSimpleCustomBase.h>
 #include <CPed.h>
 #include <CAnimBlendAssociation.h>
 
@@ -11,7 +11,7 @@
  * Simple task for the grabber's action phase (jab, throw, etc).
  * Plays the action animation and signals completion.
  */
-class CTaskSimpleGrabAction : public CTaskSimple
+class CTaskSimpleGrabAction : public CTaskSimpleCustomBase
 {
 public:
     static constexpr eTaskType Type = CGrabContext::TASK_SIMPLE_GRAB_ACTION;
@@ -30,13 +30,9 @@ public:
     ~CTaskSimpleGrabAction() override;
 
     eTaskType GetId() override { return Type; }
-    CTask* GetSubTask() override { return nullptr; }
-    bool IsSimple() override { return true; }
-    void StopTimer(CEvent*) override { }
-    CTask* Clone() override { return new CTaskSimpleGrabAction(*this); }
+    CTask* Clone() override { return reinterpret_cast<CTask*>(new CTaskSimpleGrabAction(*this)); }
     bool MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event) override;
     bool ProcessPed(CPed* ped) override;
-    bool SetPedPosition(CPed*) override { return false; }
 
     [[nodiscard]] bool IsFinished() const { return m_bFinished; }
     [[nodiscard]] CGrabContext::eGrabAction GetAction() const { return m_action; }

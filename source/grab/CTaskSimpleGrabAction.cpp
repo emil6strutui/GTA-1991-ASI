@@ -7,14 +7,12 @@
 using namespace plugin;
 
 CTaskSimpleGrabAction::CTaskSimpleGrabAction(GrabContextPtr context, CGrabContext::eGrabAction action)
-    : CTaskSimple(plugin::dummy)
-    , m_pContext(std::move(context))
+    : m_pContext(std::move(context))
     , m_action(action)
 {}
 
 CTaskSimpleGrabAction::CTaskSimpleGrabAction(const CTaskSimpleGrabAction& other)
-    : CTaskSimple(plugin::dummy)
-    , m_pContext(other.m_pContext)
+    : m_pContext(other.m_pContext)
     , m_action(other.m_action)
     , m_bAnimsReferenced(false)
     , m_bFinished(other.m_bFinished)
@@ -96,7 +94,7 @@ void CTaskSimpleGrabAction::StartAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
-        0x0,  // No special flags
+        0x0,  
         8.0f
     );
 

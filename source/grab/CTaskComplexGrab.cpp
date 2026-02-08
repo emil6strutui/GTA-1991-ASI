@@ -81,6 +81,11 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
     case CGrabContext::eGrabPhase::HOLDING:
         return CreateHoldTask();
 
+    case CGrabContext::eGrabPhase::ACTION:
+        // Action sub-task finished; OnActionComplete already transitioned phase
+        // back to HOLDING in the anim callback, but handle this defensively.
+        return CreateHoldTask();
+
     case CGrabContext::eGrabPhase::RELEASING:
     case CGrabContext::eGrabPhase::FINISHED:
         m_bFinished = true;
@@ -99,21 +104,24 @@ CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
         return nullptr;
     }
 
+    // Check for release/finish - external condition (player pressed release key)
+    auto phase = m_pContext->GetPhase();
+    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
+        m_bFinished = true;
+        return nullptr;
+    }
+
     const auto subTaskType = m_pSubTask->GetId();
-    const auto phase = GetPhase();
 
-    //// Check for attack input during holding phase - just update context state
-    //if (subTaskType == CGrabContext::TASK_SIMPLE_GRAB_HOLD) {
-    //    if (IsAttackPressed()) {
-    //        RequestAction(CGrabContext::eGrabAction::JAB);
-    //        return CreateActionTask();
-    //    }
-    //    
-    //}
-
-    /*if (subTaskType == CGrabContext::TASK_SIMPLE_GRAB_REACH && phase == CGrabContext::eGrabPhase::HOLDING) {
-        return CreateHoldTask();
-    }*/
+    // Check for attack input during holding phase - external condition (player pressed attack)
+    if (subTaskType == CGrabContext::TASK_SIMPLE_GRAB_HOLD) {
+        if (IsAttackPressed()) {
+            // RequestAction sets phase to ACTION and stores the pending action
+            // for the victim to consume. We pass the action directly to our task.
+            m_pContext->RequestAction(CGrabContext::eGrabAction::JAB);
+            return CreateActionTask(CGrabContext::eGrabAction::JAB);
+        }
+    }
 
     return m_pSubTask;
 }
@@ -230,10 +238,10 @@ void CTaskComplexGrab::AssignVictimTask()
         return;
     }
 
+    CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
     // Create and assign victim's task with shared context
     auto* victimTask = new CTaskComplexGrabbed(m_pContext);
     
-    CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
     taskMgr->SetTask(reinterpret_cast<CTask*>(victimTask), TASK_PRIMARY_PHYSICAL_RESPONSE, false);
     
     m_bVictimTaskAssigned = true;
@@ -247,6 +255,11 @@ CTask* CTaskComplexGrab::CreateReachTask()
 CTask* CTaskComplexGrab::CreateHoldTask()
 {
     return reinterpret_cast<CTask*>(new CTaskSimpleGrabHold(m_pContext));
+}
+
+CTask* CTaskComplexGrab::CreateActionTask(CGrabContext::eGrabAction action)
+{
+    return reinterpret_cast<CTask*>(new CTaskSimpleGrabAction(m_pContext, action));
 }
 
 void CTaskComplexGrab::Cleanup()

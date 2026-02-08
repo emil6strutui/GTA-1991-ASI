@@ -32,7 +32,6 @@ public:
     bool SetPedPosition(CPed* ped) override;
 
     bool IsFinished() const { return m_bFinished; }
-    bool ShouldTransitionToHit() const;
 
 private:
     void StartIdleAnimation(CPed* ped);

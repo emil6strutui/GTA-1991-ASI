@@ -61,6 +61,7 @@ private:
 
     CTask* CreateReachTask();
     CTask* CreateHoldTask();
+    CTask* CreateActionTask(CGrabContext::eGrabAction action);
 
     void Cleanup();
 

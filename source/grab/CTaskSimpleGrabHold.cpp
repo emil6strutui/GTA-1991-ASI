@@ -43,20 +43,8 @@ bool CTaskSimpleGrabHold::ProcessPed(CPed* ped)
         return true;
     }
 
-    // Check if we need to transition to action
-    if (ShouldTransitionToAction()) {
-        // Don't cleanup animation here - complex task will handle transition
-        m_bFinished = true;
-        return true;
-    }
-
-    // Check for release
-    if (m_pContext->GetPhase() == CGrabContext::eGrabPhase::RELEASING ||
-        m_pContext->GetPhase() == CGrabContext::eGrabPhase::FINISHED) {
-        Cleanup();
-        m_bFinished = true;
-        return true;
-    }
+    // Phase transitions (release, action) are handled by the complex task's
+    // ControlSubTask before ProcessPed runs. This task just plays the idle anim.
 
     // Load animations if needed
     if (!m_bAnimsReferenced && !GrabAnimations::LoadAnimations(m_bAnimsReferenced)) {
@@ -72,14 +60,6 @@ bool CTaskSimpleGrabHold::ProcessPed(CPed* ped)
     ped->m_fAimingRotation = ped->m_fCurrentRotation;
 
     return false;
-}
-
-bool CTaskSimpleGrabHold::ShouldTransitionToAction() const
-{
-    if (!m_pContext) {
-        return false;
-    }
-    return m_pContext->GetPhase() == CGrabContext::eGrabPhase::ACTION;
 }
 
 void CTaskSimpleGrabHold::StartIdleAnimation(CPed* ped)

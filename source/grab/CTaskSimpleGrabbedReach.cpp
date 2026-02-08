@@ -77,7 +77,6 @@ bool CTaskSimpleGrabbedReach::ProcessPed(CPed* ped)
         StartAnimation(ped);
         m_bStarted = true;
     }
-
     return false;
 }
 
@@ -111,7 +110,7 @@ void CTaskSimpleGrabbedReach::StartAnimation(CPed* ped)
         ped->m_pRwClump, 
         hier, 
         ANIMATION_IGNORE_ROOT_TRANSLATION, 
-        9.0f
+        8.0f
     );
 
     if (m_pAnim) {

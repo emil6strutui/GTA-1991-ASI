@@ -7,15 +7,13 @@
 #include <cmath>
 
 CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(GrabContextPtr context, CGrabContext::eGrabAction hitType)
-    : CTaskSimple(plugin::dummy)
-    , m_pContext(std::move(context))
+    : m_pContext(std::move(context))
     , m_hitType(hitType)
 {
 }
 
 CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(const CTaskSimpleGrabbedHit& other)
-    : CTaskSimple(plugin::dummy)
-    , m_pContext(other.m_pContext)
+    : m_pContext(other.m_pContext)
     , m_hitType(other.m_hitType)
     , m_bAnimsReferenced(false)
     , m_bFinished(other.m_bFinished)

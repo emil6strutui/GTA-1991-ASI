@@ -4,7 +4,12 @@
 #include <CTimer.h>
 #include <CPedIntelligence.h>
 #include <CEventGroup.h>
+#include <CAnimManager.h>
 #include <cstdint>
+
+namespace CGrabSystem {
+    void StartDelayedDebug(CPed* ped, int frames);
+}
 
 namespace CPostGrabReaction
 {
@@ -55,6 +60,27 @@ namespace CPostGrabReaction
         
         if (victim->m_fHealth <= 0.0f) {
             return;
+        }
+
+        CGrabSystem::StartDelayedDebug(victim, 60);
+
+        CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
+        CTask* fleeTask = taskMgr->m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_NONTEMP];
+        if (fleeTask) {
+            fleeTask->MakeAbortable(victim, ABORT_PRIORITY_IMMEDIATE, nullptr);
+        }
+        CTask* tempTask = taskMgr->m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_TEMP];
+        if (tempTask) {
+            tempTask->MakeAbortable(victim, ABORT_PRIORITY_IMMEDIATE, nullptr);
+        }
+
+        if (victim->m_pRwClump) {
+            CAnimManager::BlendAnimation(
+                victim->m_pRwClump,
+                ANIM_GROUP_DEFAULT,
+                ANIM_DEFAULT_IDLE_STANCE,
+                1000.0f  // instant
+            );
         }
 
         // Allocate CEventDamage on stack with proper alignment

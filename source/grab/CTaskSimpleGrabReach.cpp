@@ -110,6 +110,7 @@ void CTaskSimpleGrabReach::StartAnimation(CPed* ped)
         if (skipAmount > 0.0f && m_pAnim->m_pHierarchy) {
             float skipTime = skipAmount * m_pAnim->m_pHierarchy->m_fTotalTime;
             m_pAnim->SetCurrentTime(skipTime);
+            m_pAnim->UpdateBlend(0.0f);
         }
         
         m_pAnim->SetFinishCallback(AnimFinishedCB, this);
