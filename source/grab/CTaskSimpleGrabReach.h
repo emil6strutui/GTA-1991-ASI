@@ -15,6 +15,7 @@ private:
     CAnimBlendAssociation* m_pAnim = nullptr;
     bool m_bAnimsReferenced = false;
     bool m_bFinished = false;
+    bool m_bAnimFinished = false;
     bool m_bStarted = false;
 
 public:

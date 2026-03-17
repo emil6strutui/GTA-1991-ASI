@@ -21,6 +21,19 @@ using FnAddAudioEvent = void(__thiscall*)(
 );
 static auto PedAudio_AddAudioEvent = reinterpret_cast<FnAddAudioEvent>(0x4E2BB0);
 
+static const char* GetVictimAnimationName(CGrabContext::eGrabAction action) {
+    switch (action) {
+    case CGrabContext::eGrabAction::JAB:
+        return GrabAnimations::ANIM_GRABBED_JAB;
+    case CGrabContext::eGrabAction::THROW:
+        return GrabAnimations::ANIM_GRABBED_THROW;
+    case CGrabContext::eGrabAction::UPPERCUT:
+        return GrabAnimations::ANIM_GRABBED_UPPERCUT;
+    default:
+        return nullptr;
+    }
+}
+
 CTaskSimpleGrabAction::CTaskSimpleGrabAction(GrabContextPtr context, CGrabContext::eGrabAction action)
     : m_pContext(std::move(context))
     , m_action(action)
@@ -31,6 +44,7 @@ CTaskSimpleGrabAction::CTaskSimpleGrabAction(const CTaskSimpleGrabAction& other)
     , m_action(other.m_action)
     , m_bAnimsReferenced(false)
     , m_bFinished(other.m_bFinished)
+    , m_bAnimFinished(other.m_bAnimFinished)
     , m_bStarted(other.m_bStarted)
 {
 }
@@ -70,6 +84,16 @@ bool CTaskSimpleGrabAction::ProcessPed(CPed* ped)
         return true;
     }
 
+    if (m_pContext->GetPhase() != CGrabContext::eGrabPhase::ACTION) {
+        m_bFinished = true;
+        return true;
+    }
+
+    if (m_bAnimFinished) {
+        ped->m_fAimingRotation = ped->m_fCurrentRotation;
+        return false;
+    }
+
     // Load animations if needed
     if (!m_bAnimsReferenced && !GrabAnimations::LoadAnimations(m_bAnimsReferenced)) {
         return false;
@@ -81,7 +105,7 @@ bool CTaskSimpleGrabAction::ProcessPed(CPed* ped)
         m_bStarted = true;
     }
 
-    // Check if the punch connects at 70% of the animation
+    // Check if the punch connects during the action animation
     CheckHitTrigger(ped);
 
     // Lock rotation
@@ -118,6 +142,8 @@ void CTaskSimpleGrabAction::StartAnimation(CPed* ped)
 
     if (m_pAnim) {
         m_pAnim->ReferenceAnimBlock();
+        m_pAnim->m_fSpeed = GrabAnimations::GetSynchronizedSpeed(animName, GetVictimAnimationName(m_action));
+
         m_pAnim->SetFinishCallback(AnimFinishedCB, this);
     } else {
         m_bFinished = true;
@@ -186,7 +212,7 @@ void CTaskSimpleGrabAction::AnimFinishedCB(CAnimBlendAssociation*, void* data)
     }
 
     task->m_pAnim = nullptr;
-    task->m_bFinished = true;
+    task->m_bAnimFinished = true;
 
     // Signal grabber side completion to context
     if (task->m_pContext) {

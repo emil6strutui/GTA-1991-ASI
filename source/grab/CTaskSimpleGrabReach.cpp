@@ -14,6 +14,7 @@ CTaskSimpleGrabReach::CTaskSimpleGrabReach(GrabContextPtr context)
 CTaskSimpleGrabReach::CTaskSimpleGrabReach(const CTaskSimpleGrabReach& other)
     : m_pContext(other.m_pContext)
     , m_bFinished(other.m_bFinished)
+    , m_bAnimFinished(other.m_bAnimFinished)
     , m_bStarted(other.m_bStarted)
 {
 }
@@ -50,7 +51,8 @@ bool CTaskSimpleGrabReach::ProcessPed(CPed* ped)
         return true;
     }
 
-    if (m_pContext->GetPhase() == CGrabContext::eGrabPhase::HOLDING) {
+    const auto phase = m_pContext->GetPhase();
+    if (phase != CGrabContext::eGrabPhase::REACHING) {
         m_bFinished = true;
         return true;
     }
@@ -61,6 +63,11 @@ bool CTaskSimpleGrabReach::ProcessPed(CPed* ped)
         m_pContext->Abort();
         m_bFinished = true;
         return true;
+    }
+
+    if (m_bAnimFinished) {
+        ped->m_fAimingRotation = ped->m_fCurrentRotation;
+        return false;
     }
 
     // Load animations if needed
@@ -133,7 +140,7 @@ void CTaskSimpleGrabReach::AnimFinishedCB(CAnimBlendAssociation*, void* data)
     }
 
     task->m_pAnim = nullptr;
-    task->m_bFinished = true;
+    task->m_bAnimFinished = true;
 
     // Signal to context that grabber reach is complete
     if (task->m_pContext) {

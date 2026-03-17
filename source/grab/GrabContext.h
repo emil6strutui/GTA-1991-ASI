@@ -163,7 +163,6 @@ public:
     }
 
     [[nodiscard]] eGrabAction GetCurrentAction() const { return m_currentAction; }
-
     // Dual action-completion tracking.
     // Phase stays ACTION until BOTH sides finish their animation.
     // This prevents the grabber from starting a new jab while the

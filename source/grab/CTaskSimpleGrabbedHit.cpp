@@ -12,6 +12,19 @@
 // Speech context for low pain (not in plugin-sdk enums)
 static constexpr unsigned short CTX_GLOBAL_PAIN_LOW = 345;
 
+static const char* GetGrabberAnimationName(CGrabContext::eGrabAction action) {
+    switch (action) {
+    case CGrabContext::eGrabAction::JAB:
+        return GrabAnimations::ANIM_GRAB_JAB;
+    case CGrabContext::eGrabAction::THROW:
+        return GrabAnimations::ANIM_GRAB_THROW;
+    case CGrabContext::eGrabAction::UPPERCUT:
+        return GrabAnimations::ANIM_GRAB_UPPERCUT;
+    default:
+        return nullptr;
+    }
+}
+
 CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(GrabContextPtr context, CGrabContext::eGrabAction hitType)
     : m_pContext(std::move(context))
     , m_hitType(hitType)
@@ -23,6 +36,7 @@ CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(const CTaskSimpleGrabbedHit& other)
     , m_hitType(other.m_hitType)
     , m_bAnimsReferenced(false)
     , m_bFinished(other.m_bFinished)
+    , m_bAnimFinished(other.m_bAnimFinished)
     , m_bStarted(other.m_bStarted)
     , m_bCollisionDisabled(false)
 {
@@ -64,10 +78,19 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
         return true;
     }
 
+    if (m_pContext->GetPhase() != CGrabContext::eGrabPhase::ACTION) {
+        m_bFinished = true;
+        return true;
+    }
+
     // Maintain collision disable
     if (!m_bCollisionDisabled && ped && ped->bCollidable) {
         ped->bCollidable = false;
         m_bCollisionDisabled = true;
+    }
+
+    if (m_bAnimFinished) {
+        return false;
     }
 
     // Load animations if needed
@@ -126,6 +149,12 @@ void CTaskSimpleGrabbedHit::StartAnimation(CPed* ped)
 
     if (m_pAnim) {
         m_pAnim->ReferenceAnimBlock();
+        m_pAnim->m_fSpeed = GrabAnimations::GetSynchronizedSpeed(animName, GetGrabberAnimationName(m_hitType));
+
+        if (const auto grabberAnim = GrabAnimations::FindAssociation(m_pContext ? m_pContext->GetGrabber() : nullptr, GetGrabberAnimationName(m_hitType))) {
+            m_pAnim->SyncAnimation(grabberAnim);
+        }
+
         m_pAnim->SetFinishCallback(AnimFinishedCB, this);
     } else {
         m_bFinished = true;
@@ -240,7 +269,7 @@ void CTaskSimpleGrabbedHit::AnimFinishedCB(CAnimBlendAssociation*, void* data)
     }
 
     task->m_pAnim = nullptr;
-    task->m_bFinished = true;
+    task->m_bAnimFinished = true;
 
     // Signal victim side completion to context
     if (task->m_pContext) {

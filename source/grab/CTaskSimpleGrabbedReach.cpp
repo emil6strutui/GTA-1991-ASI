@@ -15,6 +15,7 @@ CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(GrabContextPtr context)
 CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(const CTaskSimpleGrabbedReach& other)
     : m_pContext(other.m_pContext)
     , m_bFinished(other.m_bFinished)
+    , m_bAnimFinished(other.m_bAnimFinished)
     , m_bStarted(other.m_bStarted)
 {
 }
@@ -61,10 +62,19 @@ bool CTaskSimpleGrabbedReach::ProcessPed(CPed* ped)
         return true;
     }
 
+    if (m_pContext->GetPhase() != CGrabContext::eGrabPhase::REACHING) {
+        m_bFinished = true;
+        return true;
+    }
+
     // Disable collision on first process
     if (!m_bCollisionDisabled && ped && ped->bCollidable) {
         ped->bCollidable = false;
         m_bCollisionDisabled = true;
+    }
+
+    if (m_bAnimFinished) {
+        return false;
     }
 
     // Load animations if needed
@@ -196,7 +206,7 @@ void CTaskSimpleGrabbedReach::AnimFinishedCB(CAnimBlendAssociation*, void* data)
     }
 
     task->m_pAnim = nullptr;
-    task->m_bFinished = true;
+    task->m_bAnimFinished = true;
 
     // Signal completion to context
     if (task->m_pContext) {

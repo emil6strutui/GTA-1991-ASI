@@ -75,17 +75,15 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
 
     switch (phase) {
     case CGrabContext::eGrabPhase::REACHING:
-        if (m_pContext->IsGrabberReachComplete()) {
-            return CreateHoldTask();
-        }
         return CreateReachTask();
 
     case CGrabContext::eGrabPhase::HOLDING:
         return CreateHoldTask();
 
     case CGrabContext::eGrabPhase::ACTION:
-        // Action sub-task finished; OnActionComplete already transitioned phase
-        // back to HOLDING in the anim callback, but handle this defensively.
+        if (const auto action = m_pContext->GetCurrentAction(); action != CGrabContext::eGrabAction::NONE) {
+            return CreateActionTask(action);
+        }
         return CreateHoldTask();
 
     case CGrabContext::eGrabPhase::RELEASING:

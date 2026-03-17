@@ -6,6 +6,7 @@
 #include <CAnimBlendHierarchy.h>
 #include <CStreaming.h>
 #include <CStreamingInfo.h>
+#include <algorithm>
 
 /**
  * Animation constants and helpers for the grab system.
@@ -75,6 +76,28 @@ namespace GrabAnimations
         }
 
         CAnimManager::AddAnimBlockRef(blockIndex);
+
+        static constexpr const char* warmupAnims[] = {
+            ANIM_GRAB,
+            ANIM_GRAB_IDLE,
+            ANIM_GRAB_JAB,
+            ANIM_GRAB_RELEASE,
+            ANIM_GRAB_UPPERCUT,
+            ANIM_GRABBED,
+            ANIM_GRABBED_IDLE,
+            ANIM_GRABBED_JAB,
+            ANIM_GRABBED_THROW,
+            ANIM_GRABBED_UPPERCUT,
+        };
+
+        if (const auto* block = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME)) {
+            for (const auto* animName : warmupAnims) {
+                if (auto* hier = CAnimManager::GetAnimation(animName, block)) {
+                    CAnimManager::UncompressAnimation(hier);
+                }
+            }
+        }
+
         animsReferenced = true;
         return true;
     }
@@ -110,6 +133,32 @@ namespace GrabAnimations
             return nullptr;
         }
         return CAnimManager::GetAnimation(animName, block);
+    }
+
+    inline float GetAnimationDuration(const char* animName) {
+        if (const auto* hier = GetAnimation(animName)) {
+            return hier->m_fTotalTime;
+        }
+        return 0.0f;
+    }
+
+    inline float GetSynchronizedSpeed(const char* animName, const char* partnerAnimName) {
+        const float ownDuration = GetAnimationDuration(animName);
+        const float partnerDuration = GetAnimationDuration(partnerAnimName);
+        const float targetDuration = std::max(ownDuration, partnerDuration);
+
+        if (ownDuration <= 0.0f || targetDuration <= 0.0f) {
+            return 1.0f;
+        }
+
+        return std::clamp(ownDuration / targetDuration, 0.01f, 1.0f);
+    }
+
+    inline CAnimBlendAssociation* FindAssociation(CPed* ped, const char* animName) {
+        if (!ped || !ped->m_pRwClump || !animName) {
+            return nullptr;
+        }
+        return RpAnimBlendClumpGetAssociation(ped->m_pRwClump, const_cast<char*>(animName));
     }
 
     /**
