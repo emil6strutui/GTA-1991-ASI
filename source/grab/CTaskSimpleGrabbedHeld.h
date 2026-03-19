@@ -35,6 +35,6 @@ public:
 
 private:
     void StartIdleAnimation(CPed* ped);
-    void Cleanup(CPed* ped);
+    void Cleanup();
     void PositionVictim(CPed* ped) const;
 };

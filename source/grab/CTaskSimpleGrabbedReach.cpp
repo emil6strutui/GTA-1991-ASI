@@ -10,6 +10,10 @@
 CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(GrabContextPtr context)
     : m_pContext(std::move(context))
 {
+    if (m_pContext) {
+        m_pContext->AcquireVictimCollisionDisable();
+        m_bCollisionDisabled = true;
+    }
 }
 
 CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(const CTaskSimpleGrabbedReach& other)
@@ -18,14 +22,15 @@ CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(const CTaskSimpleGrabbedReach& 
     , m_bAnimFinished(other.m_bAnimFinished)
     , m_bStarted(other.m_bStarted)
 {
+    if (m_pContext) {
+        m_pContext->AcquireVictimCollisionDisable();
+        m_bCollisionDisabled = true;
+    }
 }
 
 CTaskSimpleGrabbedReach::~CTaskSimpleGrabbedReach()
 {
-    // Note: Can't call Cleanup(ped) here as we don't have ped reference
-    // The complex task should handle collision re-enable
-    GrabAnimations::CleanupAnimation(m_pAnim);
-    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+    Cleanup();
 }
 
 bool CTaskSimpleGrabbedReach::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
@@ -35,7 +40,7 @@ bool CTaskSimpleGrabbedReach::MakeAbortable(CPed* ped, eAbortPriority priority, 
         return false;
     }
 
-    Cleanup(ped);
+    Cleanup();
     m_bFinished = true;
     
     return true;
@@ -49,14 +54,14 @@ bool CTaskSimpleGrabbedReach::ProcessPed(CPed* ped)
 
     // Validate context
     if (!m_pContext || !m_pContext->IsValid()) {
-        Cleanup(ped);
+        Cleanup();
         m_bFinished = true;
         return true;
     }
 
     // Check for timeout
     if (m_pContext->IsTimedOut()) {
-        Cleanup(ped);
+        Cleanup();
         m_pContext->Abort();
         m_bFinished = true;
         return true;
@@ -65,12 +70,6 @@ bool CTaskSimpleGrabbedReach::ProcessPed(CPed* ped)
     if (m_pContext->GetPhase() != CGrabContext::eGrabPhase::REACHING) {
         m_bFinished = true;
         return true;
-    }
-
-    // Disable collision on first process
-    if (!m_bCollisionDisabled && ped && ped->bCollidable) {
-        ped->bCollidable = false;
-        m_bCollisionDisabled = true;
     }
 
     if (m_bAnimFinished) {
@@ -139,11 +138,10 @@ void CTaskSimpleGrabbedReach::StartAnimation(CPed* ped)
     }
 }
 
-void CTaskSimpleGrabbedReach::Cleanup(CPed* ped)
+void CTaskSimpleGrabbedReach::Cleanup()
 {
-    // Re-enable collision
-    if (m_bCollisionDisabled && ped) {
-        ped->bCollidable = true;
+    if (m_bCollisionDisabled && m_pContext) {
+        m_pContext->ReleaseVictimCollisionDisable();
         m_bCollisionDisabled = false;
     }
 

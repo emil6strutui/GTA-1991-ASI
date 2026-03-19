@@ -43,7 +43,8 @@ public:
 private:
     void StartAnimation(CPed* ped);
     void CheckDamageTrigger(CPed* ped);
-    void Cleanup(CPed* ped);
+    void FinishEarly();
+    void Cleanup();
     void PositionVictim(CPed* ped) const;
     [[nodiscard]] const char* GetAnimationName() const;
     

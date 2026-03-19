@@ -47,6 +47,8 @@ public:
 private:
     CPed* m_pGrabber = nullptr;
     CPed* m_pVictim = nullptr;
+    CEntity* m_pGrabberPreviousIgnoredCollision = nullptr;
+    CEntity* m_pVictimPreviousIgnoredCollision = nullptr;
     
     eGrabPhase m_phase = eGrabPhase::REACHING;
     eGrabAction m_pendingAction = eGrabAction::NONE;
@@ -66,20 +68,19 @@ private:
     bool m_bHitConnected = false;
     bool m_bGrabberActionComplete = false;
     bool m_bVictimActionComplete = false;
+    bool m_bIgnoredCollisionOverridden = false;
+    bool m_bVictimCollisionRestorePending = false;
+    bool m_bVictimWasCollidable = false;
+    uint8_t m_nVictimCollisionDisableRefs = 0;
 
 public:
     CGrabContext() : m_nStartTime(CTimer::m_snTimeInMilliseconds) {}
     
     ~CGrabContext() {
-        // Clean up entity references
-        if (m_pGrabber) {
-            m_pGrabber->m_pEntityIgnoredCollision = nullptr;
-            m_pGrabber->CleanUpOldReference(reinterpret_cast<CEntity**>(&m_pGrabber));
-        }
-        if (m_pVictim) {
-            m_pVictim->m_pEntityIgnoredCollision = nullptr;
-            m_pVictim->CleanUpOldReference(reinterpret_cast<CEntity**>(&m_pVictim));
-        }
+        ForceRestoreVictimCollisionDisable();
+        RestoreIgnoredCollisionState();
+        CleanUpPedReference(m_pGrabber);
+        CleanUpPedReference(m_pVictim);
     }
 
     // Factory method
@@ -102,10 +103,17 @@ public:
             victim->RegisterReference(reinterpret_cast<CEntity**>(&m_pVictim));
         }
         
+        m_pGrabberPreviousIgnoredCollision = grabber ? grabber->m_pEntityIgnoredCollision : nullptr;
+        RegisterEntityReference(m_pGrabberPreviousIgnoredCollision);
+
+        m_pVictimPreviousIgnoredCollision = victim ? victim->m_pEntityIgnoredCollision : nullptr;
+        RegisterEntityReference(m_pVictimPreviousIgnoredCollision);
+
         // Set up collision ignore
         if (grabber && victim) {
             grabber->m_pEntityIgnoredCollision = victim;
             victim->m_pEntityIgnoredCollision = grabber;
+            m_bIgnoredCollisionOverridden = true;
         }
     }
 
@@ -163,6 +171,7 @@ public:
     }
 
     [[nodiscard]] eGrabAction GetCurrentAction() const { return m_currentAction; }
+    [[nodiscard]] bool IsGrabberActionComplete() const { return m_bGrabberActionComplete; }
     // Dual action-completion tracking.
     // Phase stays ACTION until BOTH sides finish their animation.
     // This prevents the grabber from starting a new jab while the
@@ -197,6 +206,37 @@ public:
     [[nodiscard]] bool IsGrabberActive() const { return m_bGrabberActive; }
     [[nodiscard]] bool IsVictimActive() const { return m_bVictimActive; }
 
+    void AcquireVictimCollisionDisable() {
+        if (!m_pVictim) {
+            return;
+        }
+
+        if (m_nVictimCollisionDisableRefs == 0) {
+            m_bVictimCollisionRestorePending = true;
+            m_bVictimWasCollidable = m_pVictim->bCollidable;
+            if (m_bVictimWasCollidable) {
+                m_pVictim->bCollidable = false;
+            }
+        }
+
+        ++m_nVictimCollisionDisableRefs;
+    }
+
+    void ReleaseVictimCollisionDisable() {
+        if (m_nVictimCollisionDisableRefs == 0) {
+            return;
+        }
+
+        if (--m_nVictimCollisionDisableRefs == 0) {
+            RestoreVictimCollisionDisableState();
+        }
+    }
+
+    void ForceRestoreVictimCollisionDisable() {
+        m_nVictimCollisionDisableRefs = 0;
+        RestoreVictimCollisionDisableState();
+    }
+
     // Abort handling
     void Abort() { 
         m_bAborted = true; 
@@ -216,6 +256,55 @@ public:
     [[nodiscard]] float GetAnimationSkip() const { return m_fAnimationSkip; }
 
 private:
+    static void RegisterEntityReference(CEntity*& entity) {
+        if (entity) {
+            entity->RegisterReference(&entity);
+        }
+    }
+
+    static void CleanUpEntityReference(CEntity*& entity) {
+        if (entity) {
+            entity->CleanUpOldReference(&entity);
+            entity = nullptr;
+        }
+    }
+
+    static void CleanUpPedReference(CPed*& ped) {
+        if (ped) {
+            ped->CleanUpOldReference(reinterpret_cast<CEntity**>(&ped));
+            ped = nullptr;
+        }
+    }
+
+    void RestoreVictimCollisionDisableState() {
+        if (!m_bVictimCollisionRestorePending) {
+            return;
+        }
+
+        if (m_pVictim && m_bVictimWasCollidable) {
+            m_pVictim->bCollidable = true;
+        }
+
+        m_bVictimCollisionRestorePending = false;
+        m_bVictimWasCollidable = false;
+    }
+
+    void RestoreIgnoredCollisionState() {
+        if (m_bIgnoredCollisionOverridden) {
+            if (m_pGrabber && m_pGrabber->m_pEntityIgnoredCollision == m_pVictim) {
+                m_pGrabber->m_pEntityIgnoredCollision = m_pGrabberPreviousIgnoredCollision;
+            }
+
+            if (m_pVictim && m_pVictim->m_pEntityIgnoredCollision == m_pGrabber) {
+                m_pVictim->m_pEntityIgnoredCollision = m_pVictimPreviousIgnoredCollision;
+            }
+        }
+
+        CleanUpEntityReference(m_pGrabberPreviousIgnoredCollision);
+        CleanUpEntityReference(m_pVictimPreviousIgnoredCollision);
+        m_bIgnoredCollisionOverridden = false;
+    }
+
     void TryCompleteAction() {
         if (m_bGrabberActionComplete && m_bVictimActionComplete) {
             m_currentAction = eGrabAction::NONE;

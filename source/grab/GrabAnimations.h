@@ -77,27 +77,6 @@ namespace GrabAnimations
 
         CAnimManager::AddAnimBlockRef(blockIndex);
 
-        static constexpr const char* warmupAnims[] = {
-            ANIM_GRAB,
-            ANIM_GRAB_IDLE,
-            ANIM_GRAB_JAB,
-            ANIM_GRAB_RELEASE,
-            ANIM_GRAB_UPPERCUT,
-            ANIM_GRABBED,
-            ANIM_GRABBED_IDLE,
-            ANIM_GRABBED_JAB,
-            ANIM_GRABBED_THROW,
-            ANIM_GRABBED_UPPERCUT,
-        };
-
-        if (const auto* block = CAnimManager::GetAnimationBlock(ANIM_BLOCK_NAME)) {
-            for (const auto* animName : warmupAnims) {
-                if (auto* hier = CAnimManager::GetAnimation(animName, block)) {
-                    CAnimManager::UncompressAnimation(hier);
-                }
-            }
-        }
-
         animsReferenced = true;
         return true;
     }

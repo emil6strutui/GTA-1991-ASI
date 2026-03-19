@@ -9,18 +9,25 @@
 CTaskSimpleGrabbedHeld::CTaskSimpleGrabbedHeld(GrabContextPtr context)
     : m_pContext(std::move(context))
 {
+    if (m_pContext) {
+        m_pContext->AcquireVictimCollisionDisable();
+        m_bCollisionDisabled = true;
+    }
 }
 
 CTaskSimpleGrabbedHeld::CTaskSimpleGrabbedHeld(const CTaskSimpleGrabbedHeld& other)
     : m_pContext(other.m_pContext)
     , m_bFinished(other.m_bFinished)
 {
+    if (m_pContext) {
+        m_pContext->AcquireVictimCollisionDisable();
+        m_bCollisionDisabled = true;
+    }
 }
 
 CTaskSimpleGrabbedHeld::~CTaskSimpleGrabbedHeld()
 {
-    GrabAnimations::CleanupAnimation(m_pAnim);
-    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+    Cleanup();
 }
 
 bool CTaskSimpleGrabbedHeld::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
@@ -28,13 +35,19 @@ bool CTaskSimpleGrabbedHeld::MakeAbortable(CPed* ped, eAbortPriority priority, C
 
     if (m_pContext && m_pContext->GetPhase() == CGrabContext::eGrabPhase::ACTION && m_pAnim) {
         GrabAnimations::ReleaseAnimation(m_pAnim);
+        GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+
+        if (m_bCollisionDisabled && m_pContext) {
+            m_pContext->ReleaseVictimCollisionDisable();
+            m_bCollisionDisabled = false;
+        }
 
         m_bFinished = true;
         return true;
     }
 
     // Normal abort — blend out the idle animation
-    Cleanup(ped);
+    Cleanup();
     m_bFinished = true;
     return true;
 }
@@ -47,19 +60,13 @@ bool CTaskSimpleGrabbedHeld::ProcessPed(CPed* ped)
 
     // Validate context
     if (!m_pContext || !m_pContext->IsValid()) {
-        Cleanup(ped);
+        Cleanup();
         m_bFinished = true;
         return true;
     }
 
     // Phase transitions (release, action) are handled by the complex task's
     // ControlSubTask before ProcessPed runs. This task just plays the idle anim.
-
-    // Maintain collision disable
-    if (!m_bCollisionDisabled && ped && ped->bCollidable) {
-        ped->bCollidable = false;
-        m_bCollisionDisabled = true;
-    }
 
     // Load animations if needed
     if (!m_bAnimsReferenced && !GrabAnimations::LoadAnimations(m_bAnimsReferenced)) {
@@ -114,10 +121,10 @@ void CTaskSimpleGrabbedHeld::StartIdleAnimation(CPed* ped)
     }
 }
 
-void CTaskSimpleGrabbedHeld::Cleanup(CPed* ped)
+void CTaskSimpleGrabbedHeld::Cleanup()
 {
-    if (m_bCollisionDisabled && ped) {
-        ped->bCollidable = true;
+    if (m_bCollisionDisabled && m_pContext) {
+        m_pContext->ReleaseVictimCollisionDisable();
         m_bCollisionDisabled = false;
     }
 

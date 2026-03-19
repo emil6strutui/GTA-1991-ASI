@@ -151,9 +151,8 @@ CTask* CTaskComplexGrabbed::CreateHeldTask()
 
 void CTaskComplexGrabbed::Cleanup(CPed* ped)
 {
-    EnableCollision(ped);
-    
     if (m_pContext) {
+        m_pContext->ForceRestoreVictimCollisionDisable();
         m_pContext->SetVictimActive(false);
     }
 }

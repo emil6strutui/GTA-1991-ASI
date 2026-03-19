@@ -21,19 +21,6 @@ using FnAddAudioEvent = void(__thiscall*)(
 );
 static auto PedAudio_AddAudioEvent = reinterpret_cast<FnAddAudioEvent>(0x4E2BB0);
 
-static const char* GetVictimAnimationName(CGrabContext::eGrabAction action) {
-    switch (action) {
-    case CGrabContext::eGrabAction::JAB:
-        return GrabAnimations::ANIM_GRABBED_JAB;
-    case CGrabContext::eGrabAction::THROW:
-        return GrabAnimations::ANIM_GRABBED_THROW;
-    case CGrabContext::eGrabAction::UPPERCUT:
-        return GrabAnimations::ANIM_GRABBED_UPPERCUT;
-    default:
-        return nullptr;
-    }
-}
-
 CTaskSimpleGrabAction::CTaskSimpleGrabAction(GrabContextPtr context, CGrabContext::eGrabAction action)
     : m_pContext(std::move(context))
     , m_action(action)
@@ -142,8 +129,6 @@ void CTaskSimpleGrabAction::StartAnimation(CPed* ped)
 
     if (m_pAnim) {
         m_pAnim->ReferenceAnimBlock();
-        m_pAnim->m_fSpeed = GrabAnimations::GetSynchronizedSpeed(animName, GetVictimAnimationName(m_action));
-
         m_pAnim->SetFinishCallback(AnimFinishedCB, this);
     } else {
         m_bFinished = true;

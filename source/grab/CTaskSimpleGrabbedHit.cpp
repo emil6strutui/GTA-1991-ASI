@@ -29,6 +29,10 @@ CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(GrabContextPtr context, CGrabContex
     : m_pContext(std::move(context))
     , m_hitType(hitType)
 {
+    if (m_pContext) {
+        m_pContext->AcquireVictimCollisionDisable();
+        m_bCollisionDisabled = true;
+    }
 }
 
 CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(const CTaskSimpleGrabbedHit& other)
@@ -40,12 +44,15 @@ CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(const CTaskSimpleGrabbedHit& other)
     , m_bStarted(other.m_bStarted)
     , m_bCollisionDisabled(false)
 {
+    if (m_pContext) {
+        m_pContext->AcquireVictimCollisionDisable();
+        m_bCollisionDisabled = true;
+    }
 }
 
 CTaskSimpleGrabbedHit::~CTaskSimpleGrabbedHit()
 {
-    GrabAnimations::CleanupAnimation(m_pAnim);
-    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+    Cleanup();
 }
 
 bool CTaskSimpleGrabbedHit::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
@@ -55,7 +62,7 @@ bool CTaskSimpleGrabbedHit::MakeAbortable(CPed* ped, eAbortPriority priority, CE
         return false;
     }
 
-    Cleanup(ped);
+    Cleanup();
     m_bFinished = true;
     
     if (m_pContext) {
@@ -73,7 +80,7 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
 
     // Validate context
     if (!m_pContext || !m_pContext->IsValid()) {
-        Cleanup(ped);
+        Cleanup();
         m_bFinished = true;
         return true;
     }
@@ -81,12 +88,6 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
     if (m_pContext->GetPhase() != CGrabContext::eGrabPhase::ACTION) {
         m_bFinished = true;
         return true;
-    }
-
-    // Maintain collision disable
-    if (!m_bCollisionDisabled && ped && ped->bCollidable) {
-        ped->bCollidable = false;
-        m_bCollisionDisabled = true;
     }
 
     if (m_bAnimFinished) {
@@ -106,6 +107,11 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
 
     // Check if the grabber signalled that the hit connected
     CheckDamageTrigger(ped);
+
+    if (m_bDamageApplied && m_pContext->IsGrabberActionComplete()) {
+        FinishEarly();
+        return true;
+    }
 
     return false;
 }
@@ -200,10 +206,32 @@ void CTaskSimpleGrabbedHit::CheckDamageTrigger(CPed* ped)
     ReportCrime(/*CRIME_DAMAGED_PED*/ 2, reinterpret_cast<CEntity*>(ped), grabber);
 }
 
-void CTaskSimpleGrabbedHit::Cleanup(CPed* ped)
+void CTaskSimpleGrabbedHit::FinishEarly()
 {
-    if (m_bCollisionDisabled && ped) {
-        ped->bCollidable = true;
+    if (m_bFinished) {
+        return;
+    }
+
+    GrabAnimations::BlendOutAnimation(m_pAnim, -8.0f);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+
+    if (m_bCollisionDisabled && m_pContext) {
+        m_pContext->ReleaseVictimCollisionDisable();
+        m_bCollisionDisabled = false;
+    }
+
+    m_bAnimFinished = true;
+    m_bFinished = true;
+
+    if (m_pContext) {
+        m_pContext->OnVictimActionComplete();
+    }
+}
+
+void CTaskSimpleGrabbedHit::Cleanup()
+{
+    if (m_bCollisionDisabled && m_pContext) {
+        m_pContext->ReleaseVictimCollisionDisable();
         m_bCollisionDisabled = false;
     }
 

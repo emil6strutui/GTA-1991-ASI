@@ -37,7 +37,7 @@ public:
 
 private:
     void StartAnimation(CPed* ped);
-    void Cleanup(CPed* ped);
+    void Cleanup();
     void PositionVictim(CPed* ped) const;
     static void AnimFinishedCB(CAnimBlendAssociation* anim, void* data);
 };
