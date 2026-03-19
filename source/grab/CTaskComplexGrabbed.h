@@ -12,6 +12,7 @@ public:
 private:
     GrabContextPtr m_pContext;
     bool m_bFinished = false;
+    bool m_bReactionTriggered = false;
     CGrabContext::eGrabAction m_lastActionHandled = CGrabContext::eGrabAction::NONE;
 
 public:
@@ -37,5 +38,6 @@ private:
     CTask* CreateReachTask();
     CTask* CreateHeldTask();
     void Cleanup(CPed* ped);
+    void TriggerFallbackReaction(CPed* ped);
     void EnableCollision(CPed* ped);
 };

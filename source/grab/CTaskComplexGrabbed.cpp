@@ -12,6 +12,7 @@ using namespace plugin;
 CTaskComplexGrabbed::CTaskComplexGrabbed(GrabContextPtr context)
     : m_pContext(std::move(context))
     , m_bFinished(false)
+    , m_bReactionTriggered(false)
     , m_lastActionHandled(CGrabContext::eGrabAction::NONE)
 {
 }
@@ -19,6 +20,7 @@ CTaskComplexGrabbed::CTaskComplexGrabbed(GrabContextPtr context)
 CTaskComplexGrabbed::CTaskComplexGrabbed(const CTaskComplexGrabbed& other)
     : m_pContext(other.m_pContext)
     , m_bFinished(other.m_bFinished)
+    , m_bReactionTriggered(other.m_bReactionTriggered)
     , m_lastActionHandled(other.m_lastActionHandled)
 {
 }
@@ -39,6 +41,7 @@ bool CTaskComplexGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEve
     }
 
     Cleanup(ped);
+    TriggerFallbackReaction(ped);
     m_bFinished = true;
     return true;
 }
@@ -58,15 +61,27 @@ CTask* CTaskComplexGrabbed::CreateFirstSubTask(CPed* ped)
 
 CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
 {
-    if (!m_pContext || !m_pContext->IsValid()) {
-        // Normally unreachable - ControlSubTask catches invalid context first.
-        // Defensive fallback only.
-        Cleanup(ped);
+    if (!m_pContext) {
         m_bFinished = true;
         return nullptr;
     }
 
-    auto phase = m_pContext->GetPhase();
+    const auto phase = m_pContext->GetPhase();
+    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
+        Cleanup(ped);
+        TriggerFallbackReaction(ped);
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    if (!m_pContext->IsValid()) {
+        // Normally unreachable - ControlSubTask catches invalid context first.
+        // Defensive fallback only.
+        Cleanup(ped);
+        TriggerFallbackReaction(ped);
+        m_bFinished = true;
+        return nullptr;
+    }
 
     switch (phase) {
     case CGrabContext::eGrabPhase::REACHING:
@@ -98,30 +113,29 @@ CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
 
 CTask* CTaskComplexGrabbed::ControlSubTask(CPed* ped)
 {
-    if (!m_pContext || !m_pContext->IsValid()) {
+    if (!m_pContext) {
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    const auto phase = m_pContext->GetPhase();
+
+    // Check for release/finish first so abort-driven cleanup still gets a fallback reaction.
+    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
         Cleanup(ped);
+        TriggerFallbackReaction(ped);
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    if (!m_pContext->IsValid()) {
+        Cleanup(ped);
+        TriggerFallbackReaction(ped);
         m_bFinished = true;
         return nullptr;
     }
 
     const auto subTaskType = m_pSubTask->GetId();
-    const auto phase = m_pContext->GetPhase();
-
-    // Check for release/finish - external condition (grabber released us)
-    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
-        Cleanup(ped);
-        m_bFinished = true;
-
-        // Trigger post-grab reaction so victim responds to attacker
-        if (ped && m_pContext) {
-            CPed* grabber = m_pContext->GetGrabber();
-            if (grabber && ped->m_pIntelligence) {
-                CPostGrabReaction::TriggerReaction(ped, grabber);
-            }
-        }
-
-        return nullptr;
-    }
 
     // Transition from reach to held when grabber signals - external condition (grabber reached)
     if (subTaskType == CGrabContext::TASK_SIMPLE_GRABBED_REACH && phase == CGrabContext::eGrabPhase::HOLDING) {
@@ -155,6 +169,21 @@ void CTaskComplexGrabbed::Cleanup(CPed* ped)
         m_pContext->ForceRestoreVictimCollisionDisable();
         m_pContext->SetVictimActive(false);
     }
+}
+
+void CTaskComplexGrabbed::TriggerFallbackReaction(CPed* ped)
+{
+    if (m_bReactionTriggered || !ped || !m_pContext || !ped->m_pIntelligence || ped->m_fHealth <= 0.0f) {
+        return;
+    }
+
+    CPed* grabber = m_pContext->GetGrabber();
+    if (!grabber || grabber == ped || grabber->m_fHealth <= 0.0f) {
+        return;
+    }
+
+    m_bReactionTriggered = true;
+    CPostGrabReaction::TriggerReaction(ped, grabber);
 }
 
 void CTaskComplexGrabbed::EnableCollision(CPed* ped)
