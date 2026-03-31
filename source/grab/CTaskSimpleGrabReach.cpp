@@ -67,7 +67,8 @@ bool CTaskSimpleGrabReach::ProcessPed(CPed* ped)
 
     if (m_bAnimFinished) {
         ped->m_fAimingRotation = ped->m_fCurrentRotation;
-        return false;
+        m_bFinished = true;
+        return true;
     }
 
     // Load animations if needed
@@ -101,13 +102,11 @@ void CTaskSimpleGrabReach::StartAnimation(CPed* ped)
     }
 
     float skipAmount = m_pContext->GetAnimationSkip();
-    float blendDelta = (skipAmount > 0.4f) ? 16.0f : 8.0f;
-
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
         ANIMATION_IS_BLEND_AUTO_REMOVE, 
-        blendDelta
+        GrabAnimations::START_BLEND_DELTA
     );
 
     if (m_pAnim) {

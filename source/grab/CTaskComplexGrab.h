@@ -57,7 +57,7 @@ public:
 private:
     CPed* FindValidVictim(CPed* grabber, float* outDistance = nullptr);
     bool InitializeGrab(CPed* grabber);
-    void AssignVictimTask();
+    bool AssignVictimTask();
 
     CTask* CreateReachTask();
     CTask* CreateHoldTask();

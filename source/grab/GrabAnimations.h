@@ -36,6 +36,7 @@ namespace GrabAnimations
     static constexpr float START_OFFSET_FORWARD = 1.6f;
     static constexpr float FINAL_OFFSET_FORWARD = 0.5f;
     static constexpr float OFFSET_Z = 0.0f;
+    static constexpr float START_BLEND_DELTA = 1000.0f;
 
     // CDefaultAnimCallback::DefaultAnimCB - does nothing (just retn)
     static auto DefaultAnimCB = reinterpret_cast<void(*)(CAnimBlendAssociation*, void*)>(0x4D1390);

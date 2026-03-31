@@ -78,7 +78,8 @@ bool CTaskSimpleGrabAction::ProcessPed(CPed* ped)
 
     if (m_bAnimFinished) {
         ped->m_fAimingRotation = ped->m_fCurrentRotation;
-        return false;
+        m_bFinished = true;
+        return true;
     }
 
     // Load animations if needed

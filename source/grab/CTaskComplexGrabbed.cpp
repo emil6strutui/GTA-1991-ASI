@@ -83,6 +83,21 @@ CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
         return nullptr;
     }
 
+    switch (m_pSubTask ? m_pSubTask->GetId() : static_cast<eTaskType>(-1)) {
+    case CGrabContext::TASK_SIMPLE_GRABBED_REACH:
+    case CGrabContext::TASK_SIMPLE_GRABBED_HIT:
+        return CreateHeldTask();
+
+    case CGrabContext::TASK_SIMPLE_GRABBED_HELD:
+        if (const auto action = m_pContext->GetCurrentAction(); action != CGrabContext::eGrabAction::NONE) {
+            return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedHit(m_pContext, action));
+        }
+        return CreateHeldTask();
+
+    default:
+        break;
+    }
+
     switch (phase) {
     case CGrabContext::eGrabPhase::REACHING:
         return CreateReachTask();
@@ -95,14 +110,6 @@ CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
             return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedHit(m_pContext, action));
         }
         return CreateHeldTask();
-
-    case CGrabContext::eGrabPhase::RELEASING:
-    case CGrabContext::eGrabPhase::FINISHED:
-        // Normally unreachable - ControlSubTask catches RELEASING/FINISHED first.
-        // Defensive fallback only.
-        Cleanup(ped);
-        m_bFinished = true;
-        return nullptr;
 
     default:
         Cleanup(ped);

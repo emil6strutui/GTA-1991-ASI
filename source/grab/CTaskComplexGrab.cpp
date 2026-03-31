@@ -6,7 +6,9 @@
 
 #include <plugin.h>
 #include <CWorld.h>
+#include <CColPoint.h>
 #include <CPad.h>
+#include <CTaskManager.h>
 #include <numbers>
 #include <cmath>
 #include <algorithm>
@@ -14,6 +16,119 @@
 #include <GrabAnimations.h>
 
 using namespace plugin;
+
+namespace {
+    constexpr float MAX_GRAB_VERTICAL_GAP = 1.25f;
+
+    bool HasCustomGrabTask(CPed* ped) {
+        if (!ped || !ped->m_pIntelligence) {
+            return false;
+        }
+
+        auto& intel = *ped->m_pIntelligence;
+        return intel.FindTaskByType(CGrabContext::TASK_COMPLEX_GRABBED)
+            || intel.FindTaskByType(CGrabContext::TASK_COMPLEX_GRAB);
+    }
+
+    bool HasIncompatibleVictimState(const CPed* ped) {
+        switch (ped->m_ePedState) {
+        case PEDSTATE_JUMP:
+        case PEDSTATE_FALL:
+        case PEDSTATE_GETUP:
+        case PEDSTATE_STAGGER:
+        case PEDSTATE_EVADE_DIVE:
+        case PEDSTATE_ARREST_PLAYER:
+        case PEDSTATE_OPEN_DOOR:
+        case PEDSTATE_ENTER_CAR:
+        case PEDSTATE_EXIT_CAR:
+        case PEDSTATE_CARJACK:
+        case PEDSTATE_DRAGGED_FROM_CAR:
+        case PEDSTATE_HANDS_UP:
+        case PEDSTATE_ARRESTED:
+        case PEDSTATE_ENTER_TRAIN:
+        case PEDSTATE_EXIT_TRAIN:
+        case PEDSTATE_DIE:
+        case PEDSTATE_DEAD:
+        case PEDSTATE_DIE_BY_STEALTH:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    bool HasIncompatibleVictimLocomotion(CPed* ped) {
+        if (!ped || !ped->m_pIntelligence) {
+            return true;
+        }
+
+        auto& intel = *ped->m_pIntelligence;
+
+        if (intel.IsInACarOrEnteringOne()) {
+            return true;
+        }
+
+        return intel.GetTaskClimb() || intel.GetTaskInAir() || intel.GetTaskSwim();
+    }
+
+    bool CanTakeVictimResponseSlot(CPed* ped) {
+        if (!ped || !ped->m_pIntelligence) {
+            return false;
+        }
+
+        auto& taskMgr = ped->m_pIntelligence->m_TaskMgr;
+        auto* currentTask = taskMgr.m_aPrimaryTasks[TASK_PRIMARY_PHYSICAL_RESPONSE];
+        if (!currentTask) {
+            return true;
+        }
+
+        const auto currentTaskId = currentTask->GetId();
+        if (currentTaskId == CGrabContext::TASK_COMPLEX_GRAB || currentTaskId == CGrabContext::TASK_COMPLEX_GRABBED) {
+            return false;
+        }
+
+        return currentTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+    }
+
+    void ForceAbortSecondaryGrabConflicts(CPed* ped) {
+        if (!ped || !ped->m_pIntelligence) {
+            return;
+        }
+
+        auto& intel = *ped->m_pIntelligence;
+        auto& taskMgr = intel.m_TaskMgr;
+
+        if (auto* attackTask = taskMgr.GetTaskSecondary(TASK_SECONDARY_ATTACK)) {
+            attackTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+            taskMgr.SetTaskSecondary(nullptr, TASK_SECONDARY_ATTACK);
+        }
+
+        if (auto* partialAnimTask = taskMgr.GetTaskSecondary(TASK_SECONDARY_PARTIAL_ANIM)) {
+            partialAnimTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+            taskMgr.SetTaskSecondary(nullptr, TASK_SECONDARY_PARTIAL_ANIM);
+        }
+
+        if (taskMgr.GetTaskSecondary(TASK_SECONDARY_DUCK)) {
+            intel.ClearTaskDuckSecondary();
+        }
+    }
+
+    bool HasLineOfSight(CPed* grabber, CPed* victim) {
+        if (!grabber || !victim || !grabber->CanSeeEntity(victim, 100.0f)) {
+            return false;
+        }
+
+        CColPoint hitPoint{};
+        CEntity* hitEntity = nullptr;
+        const CVector start = grabber->GetPosition() + CVector(0.0f, 0.0f, 0.6f);
+        const CVector end = victim->GetPosition() + CVector(0.0f, 0.0f, 0.6f);
+
+        if (!CWorld::ProcessLineOfSight(start, end, hitPoint, hitEntity, true, true, true, true, false, true, true, false)) {
+            return true;
+        }
+
+        return hitEntity == victim;
+    }
+}
 
 CTaskComplexGrab::CTaskComplexGrab()
 {
@@ -59,7 +174,11 @@ CTask* CTaskComplexGrab::CreateFirstSubTask(CPed* ped)
     }
 
     // Assign victim task
-    AssignVictimTask();
+    if (!AssignVictimTask()) {
+        Cleanup();
+        m_bFinished = true;
+        return nullptr;
+    }
 
     return CreateReachTask();
 }
@@ -71,7 +190,29 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
         return nullptr;
     }
 
-    auto phase = m_pContext->GetPhase();
+    const auto phase = m_pContext->GetPhase();
+
+    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    // Progress based on the subtask that just finished rather than only the
+    // shared phase. One side can finish a paired stage a frame earlier.
+    switch (m_pSubTask ? m_pSubTask->GetId() : static_cast<eTaskType>(-1)) {
+    case CGrabContext::TASK_SIMPLE_GRAB_REACH:
+    case CGrabContext::TASK_SIMPLE_GRAB_ACTION:
+        return CreateHoldTask();
+
+    case CGrabContext::TASK_SIMPLE_GRAB_HOLD:
+        if (const auto action = m_pContext->GetCurrentAction(); action != CGrabContext::eGrabAction::NONE) {
+            return CreateActionTask(action);
+        }
+        return CreateHoldTask();
+
+    default:
+        break;
+    }
 
     switch (phase) {
     case CGrabContext::eGrabPhase::REACHING:
@@ -85,11 +226,6 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
             return CreateActionTask(action);
         }
         return CreateHoldTask();
-
-    case CGrabContext::eGrabPhase::RELEASING:
-    case CGrabContext::eGrabPhase::FINISHED: 
-        m_bFinished = true;
-        return nullptr;
 
     default:
         m_bFinished = true;
@@ -203,7 +339,23 @@ CPed* CTaskComplexGrab::FindValidVictim(CPed* grabber, float* outDistance)
 
         auto* ped = static_cast<CPed*>(entity);
 
-        if (ped->m_fHealth <= 0.0f || ped->m_pVehicle) {
+        if (ped->m_fHealth <= 0.0f || ped->m_pVehicle || !ped->m_pIntelligence) {
+            continue;
+        }
+
+        if (std::abs(ped->GetPosition().z - grabberPos.z) > MAX_GRAB_VERTICAL_GAP) {
+            continue;
+        }
+
+        if (ped->bIsInTheAir || ped->bIsLanding || ped->bIsBeingArrested || ped->bHasAScriptBrain) {
+            continue;
+        }
+
+        if (HasCustomGrabTask(ped) || HasIncompatibleVictimState(ped) || HasIncompatibleVictimLocomotion(ped)) {
+            continue;
+        }
+
+        if (!HasLineOfSight(grabber, ped)) {
             continue;
         }
 
@@ -252,24 +404,31 @@ bool CTaskComplexGrab::InitializeGrab(CPed* grabber)
     return m_pContext != nullptr;
 }
 
-void CTaskComplexGrab::AssignVictimTask()
+bool CTaskComplexGrab::AssignVictimTask()
 {
     if (!m_pContext || m_bVictimTaskAssigned) {
-        return;
+        return m_bVictimTaskAssigned;
     }
 
     CPed* victim = m_pContext->GetVictim();
     if (!victim || !victim->m_pIntelligence) {
-        return;
+        return false;
     }
 
     CTaskManager* taskMgr = &victim->m_pIntelligence->m_TaskMgr;
+    if (!CanTakeVictimResponseSlot(victim)) {
+        return false;
+    }
+
+    ForceAbortSecondaryGrabConflicts(victim);
+
     // Create and assign victim's task with shared context
     auto* victimTask = new CTaskComplexGrabbed(m_pContext);
     
     taskMgr->SetTask(reinterpret_cast<CTask*>(victimTask), TASK_PRIMARY_PHYSICAL_RESPONSE, false);
     
     m_bVictimTaskAssigned = true;
+    return true;
 }
 
 CTask* CTaskComplexGrab::CreateReachTask()

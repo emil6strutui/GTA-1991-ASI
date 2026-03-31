@@ -91,7 +91,8 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
     }
 
     if (m_bAnimFinished) {
-        return false;
+        m_bFinished = true;
+        return true;
     }
 
     // Load animations if needed

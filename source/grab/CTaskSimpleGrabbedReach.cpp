@@ -73,7 +73,8 @@ bool CTaskSimpleGrabbedReach::ProcessPed(CPed* ped)
     }
 
     if (m_bAnimFinished) {
-        return false;
+        m_bFinished = true;
+        return true;
     }
 
     // Load animations if needed
@@ -119,7 +120,7 @@ void CTaskSimpleGrabbedReach::StartAnimation(CPed* ped)
         ped->m_pRwClump, 
         hier, 
         ANIMATION_IGNORE_ROOT_TRANSLATION, 
-        8.0f
+        GrabAnimations::START_BLEND_DELTA
     );
 
     if (m_pAnim) {
