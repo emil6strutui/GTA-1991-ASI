@@ -34,6 +34,23 @@ public:
         UPPERCUT
     };
 
+    enum class eGrabEndType : uint8_t
+    {
+        NONE,
+        SOFT_RELEASE,
+        HARD_ABORT
+    };
+
+    enum class eGrabEndReason : uint8_t
+    {
+        NONE,
+        MANUAL_RELEASE,
+        INVALID_CONTEXT,
+        ATTACKER_ABORTED,
+        VICTIM_ABORTED,
+        VICTIM_DIED
+    };
+
     // Task type IDs - must be unique
     static constexpr eTaskType TASK_COMPLEX_GRAB = static_cast<eTaskType>(9001);
     static constexpr eTaskType TASK_COMPLEX_GRABBED = static_cast<eTaskType>(9002);
@@ -53,6 +70,8 @@ private:
     eGrabPhase m_phase = eGrabPhase::REACHING;
     eGrabAction m_pendingAction = eGrabAction::NONE;
     eGrabAction m_currentAction = eGrabAction::NONE;
+    eGrabEndType m_endType = eGrabEndType::NONE;
+    eGrabEndReason m_endReason = eGrabEndReason::NONE;
     
     float m_fInitialDistance = 0.0f;
     float m_fAnimationSkip = 0.0f;
@@ -138,7 +157,7 @@ public:
     }
 
     void TransitionToHolding() {
-        if (m_bGrabberReachComplete && m_bVictimReachComplete) {
+        if (!HasEnded() && m_bGrabberReachComplete && m_bVictimReachComplete) {
             m_phase = eGrabPhase::HOLDING;
         }
     }
@@ -155,7 +174,7 @@ public:
 
     // Action management
     void RequestAction(eGrabAction action) {
-        if (m_phase == eGrabPhase::HOLDING) {
+        if (!HasEnded() && m_phase == eGrabPhase::HOLDING) {
             m_pendingAction = action;
             m_phase = eGrabPhase::ACTION;
             m_bGrabberActionComplete = false;
@@ -205,6 +224,22 @@ public:
     void SetVictimActive(bool active) { m_bVictimActive = active; }
     [[nodiscard]] bool IsGrabberActive() const { return m_bGrabberActive; }
     [[nodiscard]] bool IsVictimActive() const { return m_bVictimActive; }
+    [[nodiscard]] eGrabEndType GetEndType() const { return m_endType; }
+    [[nodiscard]] eGrabEndReason GetEndReason() const { return m_endReason; }
+    [[nodiscard]] bool HasEnded() const { return m_endType != eGrabEndType::NONE; }
+    [[nodiscard]] bool IsSoftRelease() const { return m_endType == eGrabEndType::SOFT_RELEASE; }
+    [[nodiscard]] bool IsHardAbort() const { return m_endType == eGrabEndType::HARD_ABORT; }
+
+    [[nodiscard]] bool ShouldTriggerFallbackReaction() const {
+        switch (m_endReason) {
+        case eGrabEndReason::ATTACKER_ABORTED:
+        case eGrabEndReason::VICTIM_ABORTED:
+        case eGrabEndReason::INVALID_CONTEXT:
+            return true;
+        default:
+            return false;
+        }
+    }
 
     void AcquireVictimCollisionDisable() {
         if (!m_pVictim) {
@@ -238,14 +273,26 @@ public:
     }
 
     // Abort handling
-    void Abort() { 
+    void Abort(eGrabEndReason reason = eGrabEndReason::ATTACKER_ABORTED) {
+        if (HasEnded()) {
+            return;
+        }
+
         m_bAborted = true; 
+        m_endType = eGrabEndType::HARD_ABORT;
+        m_endReason = reason;
         m_phase = eGrabPhase::FINISHED;
     }
     [[nodiscard]] bool IsAborted() const { return m_bAborted; }
 
     // Release handling
-    void Release() {
+    void Release(eGrabEndReason reason = eGrabEndReason::MANUAL_RELEASE) {
+        if (HasEnded()) {
+            return;
+        }
+
+        m_endType = eGrabEndType::SOFT_RELEASE;
+        m_endReason = reason;
         m_phase = eGrabPhase::RELEASING;
     }
 
@@ -308,7 +355,7 @@ private:
     void TryCompleteAction() {
         if (m_bGrabberActionComplete && m_bVictimActionComplete) {
             m_currentAction = eGrabAction::NONE;
-            if (m_phase == eGrabPhase::ACTION) {
+            if (!HasEnded() && m_phase == eGrabPhase::ACTION) {
                 m_phase = eGrabPhase::HOLDING;
             }
         }

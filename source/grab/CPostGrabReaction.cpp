@@ -5,6 +5,8 @@
 #include <CPedIntelligence.h>
 #include <CEventGroup.h>
 #include <CAnimManager.h>
+#include <CPedDamageResponse.h>
+#include <CPedDamageResponseCalculator.h>
 #include <cstdint>
 
 namespace CGrabSystem {
@@ -13,40 +15,115 @@ namespace CGrabSystem {
 
 namespace CPostGrabReaction
 {
-    // Using plugin-sdk's CEventDamage if available, otherwise manual approach
-    // This implementation uses direct function calls to avoid version-specific struct layouts
+    namespace {
+        using FnEventDamageConstructor = void*(__thiscall*)(
+            void* thisPtr,
+            CEntity* source,
+            uint32_t startTime,
+            int32_t weaponType,
+            int32_t pieceHit,
+            uint8_t direction,
+            bool bJumpedOutOfCar,
+            bool bPedInVehicle
+        );
 
-    // Function signatures from the game
-    // CEventDamage::CEventDamage(CEntity*, uint32, eWeaponType, ePedPieceTypes, uint8, bool, bool)
-    using FnEventDamageConstructor = void*(__thiscall*)(
-        void* thisPtr,
-        CEntity* source,
-        uint32_t startTime,
-        int32_t weaponType,
-        int32_t pieceHit,
-        uint8_t direction,
-        bool bJumpedOutOfCar,
-        bool bPedInVehicle
-    );
-    
-    // CEventDamage::AffectsPed(CPed*)
-    using FnEventDamageAffectsPed = bool(__thiscall*)(void* thisPtr, CPed* ped);
-    
-    // CEventGroup::Add(CEvent*, bool)
-    using FnEventGroupAdd = void*(__thiscall*)(CEventGroup* thisPtr, void* event, bool bValid);
-    
-    // CEntity::CleanUpOldReference(CEntity**)
-    using FnCleanUpOldReference = void(__cdecl*)(CEntity** ppEntity);
+        using FnEventDamageAffectsPed = bool(__thiscall*)(void* thisPtr, CPed* ped);
+        using FnEventGroupAdd = void*(__thiscall*)(CEventGroup* thisPtr, void* event, bool bValid);
 
-    // Game function addresses (1.0 US)
-    static auto EventDamage_Ctor = reinterpret_cast<FnEventDamageConstructor>(0x4AD830);
-    static auto EventDamage_AffectsPed = reinterpret_cast<FnEventDamageAffectsPed>(0x4B35A0);
-    static auto EventGroup_Add = reinterpret_cast<FnEventGroupAdd>(0x4AB420);
+        static auto EventDamage_Ctor = reinterpret_cast<FnEventDamageConstructor>(0x4AD830);
+        static auto EventDamage_AffectsPed = reinterpret_cast<FnEventDamageAffectsPed>(0x4B35A0);
+        static auto EventGroup_Add = reinterpret_cast<FnEventGroupAdd>(0x4AB420);
 
-    // CEventDamage size is 0x44 bytes
-    static constexpr size_t EVENT_DAMAGE_SIZE = 0x44;
-    // m_pSourceEntity offset within CEventDamage
-    static constexpr size_t SOURCE_ENTITY_OFFSET = 0x14;
+        static constexpr size_t EVENT_DAMAGE_SIZE = 0x44;
+        static constexpr size_t SOURCE_ENTITY_OFFSET = 0x14;
+        static constexpr size_t DAMAGE_RESPONSE_OFFSET = 0x38;
+        static auto ReportCrime = reinterpret_cast<void(__cdecl*)(uint32_t, CEntity*, CPed*)>(0x532010);
+
+        void CleanUpEventDamageSourceRef(uint8_t* eventBuffer) {
+            CEntity** ppSourceEntity = reinterpret_cast<CEntity**>(eventBuffer + SOURCE_ENTITY_OFFSET);
+            if (*ppSourceEntity) {
+                (*ppSourceEntity)->CleanUpOldReference(ppSourceEntity);
+            }
+        }
+    }
+
+    bool ApplyDamageWithoutReaction(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak) {
+        if (!victim || !attacker || victim->m_fHealth <= 0.0f) {
+            return false;
+        }
+
+        alignas(8) uint8_t eventBuffer[EVENT_DAMAGE_SIZE];
+
+        EventDamage_Ctor(
+            eventBuffer,
+            reinterpret_cast<CEntity*>(attacker),
+            CTimer::m_snTimeInMilliseconds,
+            WEAPONTYPE_UNARMED,
+            bodyPart,
+            0,
+            false,
+            victim->bInVehicle
+        );
+
+        if (!EventDamage_AffectsPed(eventBuffer, victim)) {
+            CleanUpEventDamageSourceRef(eventBuffer);
+            return false;
+        }
+
+        auto* response = reinterpret_cast<CPedDamageResponse*>(eventBuffer + DAMAGE_RESPONSE_OFFSET);
+        CPedDamageResponseCalculator damageCalc(
+            reinterpret_cast<CEntity*>(attacker),
+            damage,
+            WEAPONTYPE_UNARMED,
+            bodyPart,
+            bSpeak
+        );
+        damageCalc.ComputeDamageResponse(victim, *response, bSpeak);
+
+        ReportCrime(/*CRIME_DAMAGED_PED*/ 2, reinterpret_cast<CEntity*>(victim), attacker);
+        CleanUpEventDamageSourceRef(eventBuffer);
+        return true;
+    }
+
+    bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak) {
+        if (!victim || !attacker || !victim->m_pIntelligence || victim->m_fHealth <= 0.0f) {
+            return false;
+        }
+
+        alignas(8) uint8_t eventBuffer[EVENT_DAMAGE_SIZE];
+
+        EventDamage_Ctor(
+            eventBuffer,
+            reinterpret_cast<CEntity*>(attacker),
+            CTimer::m_snTimeInMilliseconds,
+            WEAPONTYPE_UNARMED,
+            bodyPart,
+            0,
+            false,
+            victim->bInVehicle
+        );
+
+        if (!EventDamage_AffectsPed(eventBuffer, victim)) {
+            CleanUpEventDamageSourceRef(eventBuffer);
+            return false;
+        }
+
+        if (damage > 0.0f) {
+            auto* response = reinterpret_cast<CPedDamageResponse*>(eventBuffer + DAMAGE_RESPONSE_OFFSET);
+            CPedDamageResponseCalculator damageCalc(
+                reinterpret_cast<CEntity*>(attacker),
+                damage,
+                WEAPONTYPE_UNARMED,
+                bodyPart,
+                bSpeak
+            );
+            damageCalc.ComputeDamageResponse(victim, *response, bSpeak);
+        }
+
+        EventGroup_Add(&victim->m_pIntelligence->m_eventGroup, eventBuffer, false);
+        CleanUpEventDamageSourceRef(eventBuffer);
+        return true;
+    }
 
     void TriggerReaction(CPed* victim, CPed* attacker)
     {
@@ -83,33 +160,6 @@ namespace CPostGrabReaction
             );
         }
 
-        // Allocate CEventDamage on stack with proper alignment
-        alignas(8) uint8_t eventBuffer[EVENT_DAMAGE_SIZE];
-       
-        EventDamage_Ctor(
-            eventBuffer,
-            reinterpret_cast<CEntity*>(attacker),
-            CTimer::m_snTimeInMilliseconds,
-            WEAPONTYPE_UNARMED,
-            PED_PIECE_TORSO,     
-            0,      // direction (front)
-            false,  // jumped out of moving car
-            victim->bInVehicle
-        );
-        
-        // Check if the event affects the victim
-        bool affects = EventDamage_AffectsPed(eventBuffer, victim);
-        
-        if (affects) {
-            // CEventGroup::Add clones the event internally, so stack allocation is fine
-            EventGroup_Add(&victim->m_pIntelligence->m_eventGroup, eventBuffer, false);
-        }
-        
-        // Manually clean up the source entity reference (what the destructor does)
-        // m_pSourceEntity is at offset 0x14 in CEventDamage
-        CEntity** ppSourceEntity = reinterpret_cast<CEntity**>(eventBuffer + SOURCE_ENTITY_OFFSET);
-        if (*ppSourceEntity) {
-            (*ppSourceEntity)->CleanUpOldReference(ppSourceEntity);
-        }
+        QueueDamageEvent(victim, attacker, 0.0f, PED_PIECE_TORSO, false);
     }
 }

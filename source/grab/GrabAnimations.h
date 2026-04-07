@@ -141,6 +141,15 @@ namespace GrabAnimations
         return RpAnimBlendClumpGetAssociation(ped->m_pRwClump, const_cast<char*>(animName));
     }
 
+    inline void ClearAnimationCallbacks(CAnimBlendAssociation* anim) {
+        if (!anim) {
+            return;
+        }
+
+        anim->SetDeleteCallback(DefaultAnimCB, nullptr);
+        anim->SetFinishCallback(DefaultAnimCB, nullptr);
+    }
+
     /**
      * Safely clean up an animation association.
      */
@@ -149,8 +158,7 @@ namespace GrabAnimations
             return;
         }
         
-        anim->SetDeleteCallback(DefaultAnimCB, nullptr);
-        anim->SetFinishCallback(DefaultAnimCB, nullptr);
+        ClearAnimationCallbacks(anim);
         anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
         
         if (anim->m_fBlendAmount > 0.0f && anim->m_fBlendDelta >= 0.0f) {
@@ -167,8 +175,9 @@ namespace GrabAnimations
         if (!anim) {
             return;
         }
-        
-        anim->SetFinishCallback(DefaultAnimCB, nullptr);
+
+        ClearAnimationCallbacks(anim);
+        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
         anim->m_fBlendDelta = blendDelta;
         anim = nullptr;
     }
@@ -184,8 +193,7 @@ namespace GrabAnimations
             return;
         }
 
-        anim->SetDeleteCallback(DefaultAnimCB, nullptr);
-        anim->SetFinishCallback(DefaultAnimCB, nullptr);
+        ClearAnimationCallbacks(anim);
         anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
         anim = nullptr;
     }

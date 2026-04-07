@@ -40,6 +40,10 @@ bool CTaskComplexGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEve
         return false;
     }
 
+    if (m_pContext && !m_pContext->HasEnded()) {
+        m_pContext->Abort(CGrabContext::eGrabEndReason::VICTIM_ABORTED);
+    }
+
     Cleanup(ped);
     TriggerFallbackReaction(ped);
     m_bFinished = true;
@@ -75,6 +79,10 @@ CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
     }
 
     if (!m_pContext->IsValid()) {
+        if (!m_pContext->HasEnded()) {
+            m_pContext->Abort(CGrabContext::eGrabEndReason::INVALID_CONTEXT);
+        }
+
         // Normally unreachable - ControlSubTask catches invalid context first.
         // Defensive fallback only.
         Cleanup(ped);
@@ -136,8 +144,17 @@ CTask* CTaskComplexGrabbed::ControlSubTask(CPed* ped)
     }
 
     if (!m_pContext->IsValid()) {
+        if (!m_pContext->HasEnded()) {
+            m_pContext->Abort(CGrabContext::eGrabEndReason::INVALID_CONTEXT);
+        }
+
         Cleanup(ped);
         TriggerFallbackReaction(ped);
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    if (!m_pSubTask) {
         m_bFinished = true;
         return nullptr;
     }
@@ -181,6 +198,10 @@ void CTaskComplexGrabbed::Cleanup(CPed* ped)
 void CTaskComplexGrabbed::TriggerFallbackReaction(CPed* ped)
 {
     if (m_bReactionTriggered || !ped || !m_pContext || !ped->m_pIntelligence || ped->m_fHealth <= 0.0f) {
+        return;
+    }
+
+    if (!m_pContext->ShouldTriggerFallbackReaction()) {
         return;
     }
 

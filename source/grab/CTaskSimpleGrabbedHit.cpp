@@ -1,16 +1,12 @@
 #include "CTaskSimpleGrabbedHit.h"
+#include "CPostGrabReaction.h"
 #include "GrabAnimations.h"
 
 #include <plugin.h>
 #include <CAnimManager.h>
 #include <CWeaponInfo.h>
-#include <CPedDamageResponseCalculator.h>
-#include <CPedDamageResponse.h>
 #include <numbers>
 #include <cmath>
-
-// Speech context for low pain (not in plugin-sdk enums)
-static constexpr unsigned short CTX_GLOBAL_PAIN_LOW = 345;
 
 static const char* GetGrabberAnimationName(CGrabContext::eGrabAction action) {
     switch (action) {
@@ -186,25 +182,16 @@ void CTaskSimpleGrabbedHit::CheckDamageTrigger(CPed* ped)
         return;
     }
 
-    ped->Say(CTX_GLOBAL_PAIN_LOW, 0, 1.0f, 0, 0, 0);
-
     CWeaponInfo* weapInfo = CWeaponInfo::GetWeaponInfo(WEAPONTYPE_UNARMED);
     float damage = weapInfo ? static_cast<float>(weapInfo->m_nDamage) : 5.0f;
 
-    CPedDamageResponseCalculator damageCalc(
-        reinterpret_cast<CEntity*>(grabber),
+    CPostGrabReaction::ApplyDamageWithoutReaction(
+        ped,
+        grabber,
         damage,
-        WEAPONTYPE_UNARMED,
         PED_PIECE_ASS,
-        false
+        true
     );
-
-    CPedDamageResponse response;
-    damageCalc.ComputeDamageResponse(ped, response, false);
-
-    // void __cdecl CCrime::ReportCrime(eCrimeType, CEntity* victim, CPed* committedBy)
-    static auto ReportCrime = reinterpret_cast<void(__cdecl*)(uint32_t, CEntity*, CPed*)>(0x532010);
-    ReportCrime(/*CRIME_DAMAGED_PED*/ 2, reinterpret_cast<CEntity*>(ped), grabber);
 }
 
 void CTaskSimpleGrabbedHit::FinishEarly()

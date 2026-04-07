@@ -185,7 +185,15 @@ CTask* CTaskComplexGrab::CreateFirstSubTask(CPed* ped)
 
 CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
 {
-    if (!m_pContext || !m_pContext->IsValid()) {
+    if (!m_pContext) {
+        m_bFinished = true;
+        return nullptr;
+    }
+
+    if (!m_pContext->IsValid()) {
+        if (!m_pContext->HasEnded()) {
+            m_pContext->Abort(CGrabContext::eGrabEndReason::INVALID_CONTEXT);
+        }
         m_bFinished = true;
         return nullptr;
     }
@@ -240,37 +248,46 @@ CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
         return nullptr;
     }
 
+    const auto phase = m_pContext->GetPhase();
+    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
+        if (m_pContext->IsSoftRelease() && ped && ped->m_pRwClump) {
+            if (CAnimBlendHierarchy* hier = GrabAnimations::GetAnimation(GrabAnimations::ANIM_GRAB_RELEASE)) {
+                if (auto* releaseAnimation = CAnimManager::BlendAnimation(
+                    ped->m_pRwClump,
+                    hier,
+                    ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE,
+                    8.0f
+                )) {
+                    releaseAnimation->m_fSpeed = 1.2f;
+                    releaseAnimation->SetFinishCallback([](CAnimBlendAssociation* anim, void*) {
+                        if (anim) {
+                            anim->m_fBlendDelta = -8.0f;
+                        }
+                    }, nullptr);
+                }
+            }
+        }
+
+        m_bFinished = true;
+        return nullptr;
+    }
+
     CPed* victim = m_pContext->GetVictim();
     if (victim && victim->m_fHealth <= 0.0f) {
-        m_pContext->Release();
-        Cleanup();
+        m_pContext->Abort(CGrabContext::eGrabEndReason::VICTIM_DIED);
         m_bFinished = true;
         return nullptr;
     }
 
     if (!m_pContext->IsValid()) {
+        if (!m_pContext->HasEnded()) {
+            m_pContext->Abort(CGrabContext::eGrabEndReason::INVALID_CONTEXT);
+        }
         m_bFinished = true;
         return nullptr;
     }
 
-    auto phase = m_pContext->GetPhase();
-    if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
-        CAnimBlendHierarchy* hier = GrabAnimations::GetAnimation(GrabAnimations::ANIM_GRAB_RELEASE);
-        if (hier) {
-            auto releaseAnimation = CAnimManager::BlendAnimation(
-                ped->m_pRwClump,
-                hier,
-                ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE,
-                8.0f
-            );
-            
-            releaseAnimation->m_fSpeed = 1.2;
-            releaseAnimation->SetFinishCallback([](CAnimBlendAssociation* anim, void*) {
-                if (anim) {
-                    anim->m_fBlendDelta = -8.0f;
-                }
-            }, nullptr);
-        }
+    if (!m_pSubTask) {
         m_bFinished = true;
         return nullptr;
     }
@@ -305,7 +322,7 @@ void CTaskComplexGrab::RequestAction(CGrabContext::eGrabAction action)
 void CTaskComplexGrab::ReleaseVictim()
 {
     if (m_pContext) {
-        m_pContext->Release();
+        m_pContext->Release(CGrabContext::eGrabEndReason::MANUAL_RELEASE);
     }
 }
 
@@ -450,7 +467,9 @@ void CTaskComplexGrab::Cleanup()
 {
     if (m_pContext) {
         m_pContext->SetGrabberActive(false);
-        m_pContext->Abort();
+        if (!m_pContext->HasEnded()) {
+            m_pContext->Abort(CGrabContext::eGrabEndReason::ATTACKER_ABORTED);
+        }
     }
 }
 
