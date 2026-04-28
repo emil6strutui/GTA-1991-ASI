@@ -20,6 +20,34 @@ using namespace plugin;
 namespace {
     constexpr float MAX_GRAB_VERTICAL_GAP = 1.25f;
 
+    bool TaskTreeHasType(CTask* task, std::initializer_list<eTaskType> taskTypes) {
+        for (; task; task = task->GetSubTask()) {
+            const auto id = task->GetId();
+            if (std::find(taskTypes.begin(), taskTypes.end(), id) != taskTypes.end()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool HasDamageOrFallTask(CTask* task) {
+        return TaskTreeHasType(task, {
+            TASK_SIMPLE_GET_UP,
+            TASK_COMPLEX_GET_UP_AND_STAND_STILL,
+            TASK_SIMPLE_FALL,
+            TASK_COMPLEX_FALL_AND_GET_UP,
+            TASK_COMPLEX_FALL_AND_STAY_DOWN,
+            TASK_COMPLEX_HIT_RESPONSE,
+            TASK_COMPLEX_HIT_BY_GUN_RESPONSE,
+            TASK_SIMPLE_HIT_BACK,
+            TASK_SIMPLE_HIT_FRONT,
+            TASK_SIMPLE_HIT_LEFT,
+            TASK_SIMPLE_HIT_RIGHT,
+            TASK_SIMPLE_HIT_BEHIND
+        });
+    }
+
     bool HasCustomGrabTask(CPed* ped) {
         if (!ped || !ped->m_pIntelligence) {
             return false;
@@ -70,6 +98,26 @@ namespace {
         return intel.GetTaskClimb() || intel.GetTaskInAir() || intel.GetTaskSwim();
     }
 
+    bool HasBusyVictimResponseSlots(CPed* ped) {
+        if (!ped || !ped->m_pIntelligence) {
+            return true;
+        }
+
+        auto& taskMgr = ped->m_pIntelligence->m_TaskMgr;
+
+        if (taskMgr.m_aPrimaryTasks[TASK_PRIMARY_PHYSICAL_RESPONSE]) {
+            return true;
+        }
+
+        if (taskMgr.m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_TEMP]
+            || taskMgr.m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_NONTEMP]) {
+            return true;
+        }
+
+        return HasDamageOrFallTask(taskMgr.GetActiveTask())
+            || HasDamageOrFallTask(taskMgr.GetSimplestActiveTask());
+    }
+
     bool CanTakeVictimResponseSlot(CPed* ped) {
         if (!ped || !ped->m_pIntelligence) {
             return false;
@@ -86,7 +134,7 @@ namespace {
             return false;
         }
 
-        return currentTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+        return false;
     }
 
     void ForceAbortSecondaryGrabConflicts(CPed* ped) {
@@ -140,9 +188,9 @@ CTaskComplexGrab::CTaskComplexGrab()
 
 CTaskComplexGrab::CTaskComplexGrab(const CTaskComplexGrab& other)
 {
-    m_pContext = other.m_pContext;
-    m_bFinished = other.m_bFinished;
-    m_bVictimTaskAssigned = other.m_bVictimTaskAssigned;
+    m_pContext = nullptr;
+    m_bFinished = true;
+    m_bVictimTaskAssigned = false;
 }
 
 CTaskComplexGrab::~CTaskComplexGrab()
@@ -152,6 +200,10 @@ CTaskComplexGrab::~CTaskComplexGrab()
 
 bool CTaskComplexGrab::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
+    if (priority != ABORT_PRIORITY_IMMEDIATE && m_pContext && !m_pContext->HasEnded()) {
+        return false;
+    }
+
     if (m_pSubTask && !m_pSubTask->MakeAbortable(ped, priority, event)) {
         return false;
     }
@@ -251,6 +303,8 @@ CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
     const auto phase = m_pContext->GetPhase();
     if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
         if (m_pContext->IsSoftRelease() && ped && ped->m_pRwClump) {
+            GrabAnimations::EnsureBaseAnimation(ped);
+
             if (CAnimBlendHierarchy* hier = GrabAnimations::GetAnimation(GrabAnimations::ANIM_GRAB_RELEASE)) {
                 if (auto* releaseAnimation = CAnimManager::BlendAnimation(
                     ped->m_pRwClump,
@@ -369,6 +423,10 @@ CPed* CTaskComplexGrab::FindValidVictim(CPed* grabber, float* outDistance)
         }
 
         if (HasCustomGrabTask(ped) || HasIncompatibleVictimState(ped) || HasIncompatibleVictimLocomotion(ped)) {
+            continue;
+        }
+
+        if (HasBusyVictimResponseSlots(ped)) {
             continue;
         }
 

@@ -12,10 +12,10 @@ CTaskSimpleGrabReach::CTaskSimpleGrabReach(GrabContextPtr context)
 }
 
 CTaskSimpleGrabReach::CTaskSimpleGrabReach(const CTaskSimpleGrabReach& other)
-    : m_pContext(other.m_pContext)
-    , m_bFinished(other.m_bFinished)
-    , m_bAnimFinished(other.m_bAnimFinished)
-    , m_bStarted(other.m_bStarted)
+    : m_pContext(nullptr)
+    , m_bFinished(true)
+    , m_bAnimFinished(true)
+    , m_bStarted(false)
 {
 }
 
@@ -26,13 +26,19 @@ CTaskSimpleGrabReach::~CTaskSimpleGrabReach()
 
 bool CTaskSimpleGrabReach::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    // During reaching phase, only allow immediate aborts
-    // This prevents interruption mid-reach which could leave victim stuck
-    if (priority != ABORT_PRIORITY_IMMEDIATE && !m_bFinished) {
+    const auto phase = m_pContext ? m_pContext->GetPhase() : CGrabContext::eGrabPhase::FINISHED;
+
+    // Reject outside interruptions mid-reach, but release/finish must be able
+    // to blend back to a base anim because TaskManager ignores this return.
+    if (priority != ABORT_PRIORITY_IMMEDIATE
+        && !m_bFinished
+        && phase != CGrabContext::eGrabPhase::RELEASING
+        && phase != CGrabContext::eGrabPhase::FINISHED) {
         return false;
     }
 
-    Cleanup();
+    GrabAnimations::AbortAnimation(ped, m_pAnim, priority);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
     m_bFinished = true;
     
     return true;

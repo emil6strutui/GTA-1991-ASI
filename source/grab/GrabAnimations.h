@@ -6,6 +6,7 @@
 #include <CAnimBlendHierarchy.h>
 #include <CStreaming.h>
 #include <CStreamingInfo.h>
+#include <CPed.h>
 #include <algorithm>
 
 /**
@@ -150,6 +151,19 @@ namespace GrabAnimations
         anim->SetFinishCallback(DefaultAnimCB, nullptr);
     }
 
+    inline void EnsureBaseAnimation(CPed* ped, float blendDelta = 1000.0f) {
+        if (!ped || !ped->m_pRwClump) {
+            return;
+        }
+
+        CAnimManager::BlendAnimation(
+            ped->m_pRwClump,
+            ped->m_nAnimGroup,
+            ANIM_DEFAULT_IDLE_STANCE,
+            blendDelta
+        );
+    }
+
     /**
      * Safely clean up an animation association.
      */
@@ -179,6 +193,34 @@ namespace GrabAnimations
         ClearAnimationCallbacks(anim);
         anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
         anim->m_fBlendDelta = blendDelta;
+        anim = nullptr;
+    }
+
+    /**
+     * Abort an owned task animation using the same model as CTaskSimpleAnim:
+     * partial animations fade themselves out, while full-body animations blend
+     * the ped back to idle so the clump is never left with no base movement.
+     */
+    inline void AbortAnimation(CPed* ped, CAnimBlendAssociation*& anim, eAbortPriority priority, bool holdLastFrame = false) {
+        if (!anim) {
+            return;
+        }
+
+        const float blendDelta = priority == ABORT_PRIORITY_IMMEDIATE ? -1000.0f : -4.0f;
+
+        ClearAnimationCallbacks(anim);
+        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
+
+        if (!holdLastFrame) {
+            if (anim->m_nFlags & ANIMATION_IS_PARTIAL) {
+                anim->m_fBlendDelta = blendDelta;
+            } else if (ped && ped->m_pRwClump) {
+                CAnimManager::BlendAnimation(ped->m_pRwClump, ped->m_nAnimGroup, ANIM_DEFAULT_IDLE_STANCE, -blendDelta);
+            } else if (anim->m_fBlendAmount > 0.0f && anim->m_fBlendDelta >= 0.0f) {
+                anim->m_fBlendDelta = blendDelta;
+            }
+        }
+
         anim = nullptr;
     }
 

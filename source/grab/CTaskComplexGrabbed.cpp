@@ -18,10 +18,10 @@ CTaskComplexGrabbed::CTaskComplexGrabbed(GrabContextPtr context)
 }
 
 CTaskComplexGrabbed::CTaskComplexGrabbed(const CTaskComplexGrabbed& other)
-    : m_pContext(other.m_pContext)
-    , m_bFinished(other.m_bFinished)
-    , m_bReactionTriggered(other.m_bReactionTriggered)
-    , m_lastActionHandled(other.m_lastActionHandled)
+    : m_pContext(nullptr)
+    , m_bFinished(true)
+    , m_bReactionTriggered(false)
+    , m_lastActionHandled(CGrabContext::eGrabAction::NONE)
 {
 }
 
@@ -31,11 +31,18 @@ CTaskComplexGrabbed::~CTaskComplexGrabbed()
     // The subtask destructor should handle collision re-enable
     if (m_pContext) {
         m_pContext->SetVictimActive(false);
+        if (!m_pContext->HasEnded()) {
+            m_pContext->Abort(CGrabContext::eGrabEndReason::VICTIM_ABORTED);
+        }
     }
 }
 
 bool CTaskComplexGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
+    if (priority != ABORT_PRIORITY_IMMEDIATE && m_pContext && !m_pContext->HasEnded()) {
+        return false;
+    }
+
     if (m_pSubTask && !m_pSubTask->MakeAbortable(ped, priority, event)) {
         return false;
     }
@@ -52,7 +59,7 @@ bool CTaskComplexGrabbed::MakeAbortable(CPed* ped, eAbortPriority priority, CEve
 
 CTask* CTaskComplexGrabbed::CreateFirstSubTask(CPed* ped)
 {
-    if (!m_pContext || !m_pContext->IsValid()) {
+    if (!m_pContext || !m_pContext->ArePedsValid()) {
         m_bFinished = true;
         return nullptr;
     }
@@ -201,12 +208,18 @@ void CTaskComplexGrabbed::TriggerFallbackReaction(CPed* ped)
         return;
     }
 
-    if (!m_pContext->ShouldTriggerFallbackReaction()) {
+    CPed* grabber = m_pContext->GetGrabber();
+    if (!grabber || grabber == ped || grabber->m_fHealth <= 0.0f) {
         return;
     }
 
-    CPed* grabber = m_pContext->GetGrabber();
-    if (!grabber || grabber == ped || grabber->m_fHealth <= 0.0f) {
+    if (m_pContext->GetEndReason() == CGrabContext::eGrabEndReason::MANUAL_RELEASE) {
+        m_bReactionTriggered = true;
+        CPostGrabReaction::TriggerReleasePush(ped, grabber);
+        return;
+    }
+
+    if (!m_pContext->ShouldTriggerFallbackReaction()) {
         return;
     }
 

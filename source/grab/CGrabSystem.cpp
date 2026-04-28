@@ -5,14 +5,30 @@
 #include <plugin.h>
 #include <CPad.h>
 #include <CPlayerPed.h>
+#include <CTimer.h>
 #include <CTaskManager.h>
 #include <CWorld.h>
+#include <algorithm>
 
 using namespace plugin;
 
 namespace CGrabSystem
 {
     namespace {
+        constexpr uint32_t GRAB_RESTART_COOLDOWN_MS = 800;
+        uint32_t s_nextGrabStartTime = 0;
+
+        bool IsGrabStartCoolingDown() {
+            return CTimer::m_snTimeInMilliseconds < s_nextGrabStartTime;
+        }
+
+        void BlockGrabStartBriefly() {
+            s_nextGrabStartTime = std::max(
+                s_nextGrabStartTime,
+                CTimer::m_snTimeInMilliseconds + GRAB_RESTART_COOLDOWN_MS
+            );
+        }
+
         bool CanTakeGrabberResponseSlot(CPlayerPed* player) {
             if (!player || !player->m_pIntelligence) {
                 return false;
@@ -58,8 +74,22 @@ namespace CGrabSystem
     static int s_debugCountdown = -1;
     static CPed* s_debugPed = nullptr;
 
+    static void ClearDelayedDebugPed() {
+        if (s_debugPed) {
+            s_debugPed->CleanUpOldReference(reinterpret_cast<CEntity**>(&s_debugPed));
+            s_debugPed = nullptr;
+        }
+    }
+
     void StartDelayedDebug(CPed* ped, int frames = 60) {
+        ClearDelayedDebugPed();
+        if (!ped) {
+            s_debugCountdown = -1;
+            return;
+        }
+
         s_debugPed = ped;
+        s_debugPed->RegisterReference(reinterpret_cast<CEntity**>(&s_debugPed));
         s_debugCountdown = frames;
     }
 
@@ -182,30 +212,31 @@ namespace CGrabSystem
                 for (int i = 0; i < 5; i++) {
                     CTask* task = taskMgr->m_aPrimaryTasks[i];
                     if (task) {
-                        sprintf(buf, "Slot[%d]: ptr=%p type=%d\n", i, task, task->GetId());
+                        sprintf_s(buf, "Slot[%d]: ptr=%p type=%d\n", i, task, task->GetId());
                         OutputDebugStringA(buf);
                     }
                 }
 
-                if (!s_debugPed || !s_debugPed->m_pRwClump) return;
+                if (s_debugPed->m_pRwClump) {
+                    OutputDebugStringA("=== Current Animations ===\n");
+                    CAnimBlendAssociation* assoc = RpAnimBlendClumpGetFirstAssociation(s_debugPed->m_pRwClump);
+                    int count = 0;
 
-                OutputDebugStringA("=== Current Animations ===\n");
-                CAnimBlendAssociation* assoc = RpAnimBlendClumpGetFirstAssociation(s_debugPed->m_pRwClump);
-                int count = 0;
+                    while (assoc) {
+                        char buf[256];
+                        sprintf_s(buf, "[%d] Blend: %.2f Delta: %.2f Flags: 0x%X\n",
+                            count, assoc->m_fBlendAmount, assoc->m_fBlendDelta, assoc->m_nFlags);
+                        OutputDebugStringA(buf);
+                        assoc = RpAnimBlendGetNextAssociation(assoc);
+                        count++;
+                    }
 
-                while (assoc) {
-                    char buf[256];
-                    sprintf(buf, "[%d] Blend: %.2f Delta: %.2f Flags: 0x%X\n",
-                        count, assoc->m_fBlendAmount, assoc->m_fBlendDelta, assoc->m_nFlags);
-                    OutputDebugStringA(buf);
-                    assoc = RpAnimBlendGetNextAssociation(assoc);
-                    count++;
-                }
-
-                if (count == 0) {
-                    OutputDebugStringA("NO ANIMATIONS!\n");
+                    if (count == 0) {
+                        OutputDebugStringA("NO ANIMATIONS!\n");
+                    }
                 }
             }
+            ClearDelayedDebugPed();
         }
 
         if (!IsGrabKeyJustPressed()) {
@@ -224,8 +255,17 @@ namespace CGrabSystem
                 phase == CGrabContext::eGrabPhase::ACTION ||
                 phase == CGrabContext::eGrabPhase::REACHING) {
                 existingGrab->ReleaseVictim();
+                BlockGrabStartBriefly();
                 return;
             }
+
+            // Let the TaskManager finish release cleanup before replacing this
+            // physical-response task with a new grab task.
+            return;
+        }
+
+        if (IsGrabStartCoolingDown()) {
+            return;
         }
 
         if (!CanPlayerGrab(player)) {

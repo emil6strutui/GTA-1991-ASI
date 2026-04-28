@@ -7,6 +7,7 @@
 #include <CAnimManager.h>
 #include <CPedDamageResponse.h>
 #include <CPedDamageResponseCalculator.h>
+#include <CVector.h>
 #include <cstdint>
 
 namespace CGrabSystem {
@@ -36,14 +37,51 @@ namespace CPostGrabReaction
 
         static constexpr size_t EVENT_DAMAGE_SIZE = 0x44;
         static constexpr size_t SOURCE_ENTITY_OFFSET = 0x14;
+        static constexpr size_t DAMAGE_FLAGS_OFFSET = 0x25;
         static constexpr size_t DAMAGE_RESPONSE_OFFSET = 0x38;
+        static constexpr uint8_t DAMAGE_FLAG_FALL_DOWN = 1u << 1;
+        static constexpr uint8_t RELEASE_FALL_BACK_DIRECTION = 2;
+        static constexpr float RELEASE_PUSH_DAMAGE = 3.0f;
+        static constexpr float RELEASE_PUSH_FORCE = 4.0f;
+        static constexpr float RELEASE_PUSH_UP_FORCE = 1.5f;
         static auto ReportCrime = reinterpret_cast<void(__cdecl*)(uint32_t, CEntity*, CPed*)>(0x532010);
+
+        void EnsureBaseAnimation(CPed* ped) {
+            if (!ped || !ped->m_pRwClump) {
+                return;
+            }
+
+            CAnimManager::BlendAnimation(
+                ped->m_pRwClump,
+                ped->m_nAnimGroup,
+                ANIM_DEFAULT_IDLE_STANCE,
+                1000.0f
+            );
+        }
 
         void CleanUpEventDamageSourceRef(uint8_t* eventBuffer) {
             CEntity** ppSourceEntity = reinterpret_cast<CEntity**>(eventBuffer + SOURCE_ENTITY_OFFSET);
             if (*ppSourceEntity) {
                 (*ppSourceEntity)->CleanUpOldReference(ppSourceEntity);
             }
+        }
+
+        void ApplyReleasePushForce(CPed* victim, CPed* attacker) {
+            CVector force = victim->GetPosition() - attacker->GetPosition();
+            force.z = 0.0f;
+
+            if (force.MagnitudeSqr2D() <= 0.0001f) {
+                force = -victim->GetForward();
+                force.z = 0.0f;
+            }
+
+            force.Normalise();
+            force *= RELEASE_PUSH_FORCE;
+            force.z = RELEASE_PUSH_UP_FORCE;
+
+            victim->bWasStanding = false;
+            victim->bIsStanding = false;
+            victim->ApplyMoveForce(force);
         }
     }
 
@@ -86,6 +124,10 @@ namespace CPostGrabReaction
     }
 
     bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak) {
+        return QueueDamageEvent(victim, attacker, damage, bodyPart, 0, false, bSpeak);
+    }
+
+    bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, uint8_t direction, bool forceFallDown, bool bSpeak) {
         if (!victim || !attacker || !victim->m_pIntelligence || victim->m_fHealth <= 0.0f) {
             return false;
         }
@@ -98,10 +140,14 @@ namespace CPostGrabReaction
             CTimer::m_snTimeInMilliseconds,
             WEAPONTYPE_UNARMED,
             bodyPart,
-            0,
+            direction,
             false,
             victim->bInVehicle
         );
+
+        if (forceFallDown) {
+            eventBuffer[DAMAGE_FLAGS_OFFSET] |= DAMAGE_FLAG_FALL_DOWN;
+        }
 
         if (!EventDamage_AffectsPed(eventBuffer, victim)) {
             CleanUpEventDamageSourceRef(eventBuffer);
@@ -161,5 +207,24 @@ namespace CPostGrabReaction
         }
 
         QueueDamageEvent(victim, attacker, 0.0f, PED_PIECE_TORSO, false);
+    }
+
+    void TriggerReleasePush(CPed* victim, CPed* attacker)
+    {
+        if (!victim || !attacker || !victim->m_pIntelligence || victim->m_fHealth <= 0.0f) {
+            return;
+        }
+
+        EnsureBaseAnimation(victim);
+        ApplyReleasePushForce(victim, attacker);
+        QueueDamageEvent(
+            victim,
+            attacker,
+            RELEASE_PUSH_DAMAGE,
+            PED_PIECE_TORSO,
+            RELEASE_FALL_BACK_DIRECTION,
+            true,
+            false
+        );
     }
 }

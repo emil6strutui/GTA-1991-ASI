@@ -12,8 +12,8 @@ CTaskSimpleGrabHold::CTaskSimpleGrabHold(GrabContextPtr context)
 }
 
 CTaskSimpleGrabHold::CTaskSimpleGrabHold(const CTaskSimpleGrabHold& other)
-    : m_pContext(other.m_pContext)
-    , m_bFinished(other.m_bFinished)
+    : m_pContext(nullptr)
+    , m_bFinished(true)
 {
 }
 
@@ -24,8 +24,17 @@ CTaskSimpleGrabHold::~CTaskSimpleGrabHold()
 
 bool CTaskSimpleGrabHold::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    // Hold state is abortable at any priority
-    Cleanup();
+    if (priority != ABORT_PRIORITY_IMMEDIATE && m_pContext) {
+        const auto phase = m_pContext->GetPhase();
+        if (phase != CGrabContext::eGrabPhase::ACTION
+            && phase != CGrabContext::eGrabPhase::RELEASING
+            && phase != CGrabContext::eGrabPhase::FINISHED) {
+            return false;
+        }
+    }
+
+    GrabAnimations::AbortAnimation(ped, m_pAnim, priority);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
     m_bFinished = true;
     return true;
 }

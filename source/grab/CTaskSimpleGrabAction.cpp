@@ -27,12 +27,12 @@ CTaskSimpleGrabAction::CTaskSimpleGrabAction(GrabContextPtr context, CGrabContex
 {}
 
 CTaskSimpleGrabAction::CTaskSimpleGrabAction(const CTaskSimpleGrabAction& other)
-    : m_pContext(other.m_pContext)
+    : m_pContext(nullptr)
     , m_action(other.m_action)
     , m_bAnimsReferenced(false)
-    , m_bFinished(other.m_bFinished)
-    , m_bAnimFinished(other.m_bAnimFinished)
-    , m_bStarted(other.m_bStarted)
+    , m_bFinished(true)
+    , m_bAnimFinished(true)
+    , m_bStarted(false)
 {
 }
 
@@ -43,12 +43,19 @@ CTaskSimpleGrabAction::~CTaskSimpleGrabAction()
 
 bool CTaskSimpleGrabAction::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    // Actions are not interruptible except for immediate priority
-    if (priority != ABORT_PRIORITY_IMMEDIATE && !m_bFinished) {
+    const auto phase = m_pContext ? m_pContext->GetPhase() : CGrabContext::eGrabPhase::FINISHED;
+
+    // Outside events should not break an action, but release/finish cleanup
+    // must run because TaskManager deletes the old subtask regardless.
+    if (priority != ABORT_PRIORITY_IMMEDIATE
+        && !m_bFinished
+        && phase != CGrabContext::eGrabPhase::RELEASING
+        && phase != CGrabContext::eGrabPhase::FINISHED) {
         return false;
     }
 
-    Cleanup();
+    GrabAnimations::AbortAnimation(ped, m_pAnim, priority);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
     m_bFinished = true;
     
     if (m_pContext) {
@@ -124,7 +131,7 @@ void CTaskSimpleGrabAction::StartAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
-        0x0,  
+        ANIMATION_IS_BLEND_AUTO_REMOVE,  
         8.0f
     );
 

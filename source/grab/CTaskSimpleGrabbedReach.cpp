@@ -17,15 +17,11 @@ CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(GrabContextPtr context)
 }
 
 CTaskSimpleGrabbedReach::CTaskSimpleGrabbedReach(const CTaskSimpleGrabbedReach& other)
-    : m_pContext(other.m_pContext)
-    , m_bFinished(other.m_bFinished)
-    , m_bAnimFinished(other.m_bAnimFinished)
-    , m_bStarted(other.m_bStarted)
+    : m_pContext(nullptr)
+    , m_bFinished(true)
+    , m_bAnimFinished(true)
+    , m_bStarted(false)
 {
-    if (m_pContext) {
-        m_pContext->AcquireVictimCollisionDisable();
-        m_bCollisionDisabled = true;
-    }
 }
 
 CTaskSimpleGrabbedReach::~CTaskSimpleGrabbedReach()
@@ -35,12 +31,23 @@ CTaskSimpleGrabbedReach::~CTaskSimpleGrabbedReach()
 
 bool CTaskSimpleGrabbedReach::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    // During reach, only immediate priority can abort
-    if (priority != ABORT_PRIORITY_IMMEDIATE && !m_bFinished) {
+    const auto phase = m_pContext ? m_pContext->GetPhase() : CGrabContext::eGrabPhase::FINISHED;
+
+    // During reach, only immediate/outside aborts are rejected. Release/finish
+    // still needs to restore collision and blend a base anim before deletion.
+    if (priority != ABORT_PRIORITY_IMMEDIATE
+        && !m_bFinished
+        && phase != CGrabContext::eGrabPhase::RELEASING
+        && phase != CGrabContext::eGrabPhase::FINISHED) {
         return false;
     }
 
-    Cleanup();
+    GrabAnimations::AbortAnimation(ped, m_pAnim, priority);
+    if (m_bCollisionDisabled && m_pContext) {
+        m_pContext->ReleaseVictimCollisionDisable();
+        m_bCollisionDisabled = false;
+    }
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
     m_bFinished = true;
     
     return true;

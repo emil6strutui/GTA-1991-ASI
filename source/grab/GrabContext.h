@@ -136,13 +136,20 @@ public:
         }
     }
 
-    // Check if context is still valid for operation
-    [[nodiscard]] bool IsValid() const {
+    // Check if the referenced peds can still participate in a grab.
+    // This is intentionally separate from IsValid(): partner task startup
+    // needs to validate entity state before both task-active flags are set.
+    [[nodiscard]] bool ArePedsValid() const {
         if (m_bAborted) return false;
         if (!m_pGrabber || m_pGrabber->m_fHealth <= 0.0f) return false;
         if (!m_pVictim || m_pVictim->m_fHealth <= 0.0f) return false;
         if (m_pVictim->m_pVehicle) return false;  // Victim entered vehicle
         return true;
+    }
+
+    // Check if context is still valid for paired task operation.
+    [[nodiscard]] bool IsValid() const {
+        return ArePedsValid() && m_bGrabberActive && m_bVictimActive;
     }
 
     [[nodiscard]] bool IsTimedOut() const {

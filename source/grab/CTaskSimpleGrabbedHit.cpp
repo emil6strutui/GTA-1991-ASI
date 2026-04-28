@@ -32,18 +32,14 @@ CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(GrabContextPtr context, CGrabContex
 }
 
 CTaskSimpleGrabbedHit::CTaskSimpleGrabbedHit(const CTaskSimpleGrabbedHit& other)
-    : m_pContext(other.m_pContext)
+    : m_pContext(nullptr)
     , m_hitType(other.m_hitType)
     , m_bAnimsReferenced(false)
-    , m_bFinished(other.m_bFinished)
-    , m_bAnimFinished(other.m_bAnimFinished)
-    , m_bStarted(other.m_bStarted)
+    , m_bFinished(true)
+    , m_bAnimFinished(true)
+    , m_bStarted(false)
     , m_bCollisionDisabled(false)
 {
-    if (m_pContext) {
-        m_pContext->AcquireVictimCollisionDisable();
-        m_bCollisionDisabled = true;
-    }
 }
 
 CTaskSimpleGrabbedHit::~CTaskSimpleGrabbedHit()
@@ -53,12 +49,23 @@ CTaskSimpleGrabbedHit::~CTaskSimpleGrabbedHit()
 
 bool CTaskSimpleGrabbedHit::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    // Hit reactions are only abortable with immediate priority
-    if (priority != ABORT_PRIORITY_IMMEDIATE && !m_bFinished) {
+    const auto phase = m_pContext ? m_pContext->GetPhase() : CGrabContext::eGrabPhase::FINISHED;
+
+    // Hit reactions reject outside interruption, but release/finish cleanup
+    // must be allowed because the complex parent will delete this subtask.
+    if (priority != ABORT_PRIORITY_IMMEDIATE
+        && !m_bFinished
+        && phase != CGrabContext::eGrabPhase::RELEASING
+        && phase != CGrabContext::eGrabPhase::FINISHED) {
         return false;
     }
 
-    Cleanup();
+    GrabAnimations::AbortAnimation(ped, m_pAnim, priority);
+    if (m_bCollisionDisabled && m_pContext) {
+        m_pContext->ReleaseVictimCollisionDisable();
+        m_bCollisionDisabled = false;
+    }
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
     m_bFinished = true;
     
     if (m_pContext) {
