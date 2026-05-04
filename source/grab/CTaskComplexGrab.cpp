@@ -420,7 +420,7 @@ void CTaskComplexGrab::ReleaseVictim()
     }
 }
 
-CPed* CTaskComplexGrab::FindValidVictim(CPed* grabber, float* outDistance)
+CPed* CTaskComplexGrab::FindValidVictimForGrab(CPed* grabber, float* outDistance)
 {
     if (!grabber) {
         return nullptr;
@@ -507,7 +507,7 @@ CPed* CTaskComplexGrab::FindValidVictim(CPed* grabber, float* outDistance)
 bool CTaskComplexGrab::InitializeGrab(CPed* grabber)
 {
     float distance = 0.0f;
-    CPed* victim = FindValidVictim(grabber, &distance);
+    CPed* victim = FindValidVictimForGrab(grabber, &distance);
 
     if (!victim) {
         return false;  // No valid victim found

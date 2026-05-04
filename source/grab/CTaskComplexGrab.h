@@ -51,11 +51,12 @@ public:
     [[nodiscard]] bool IsFinished() const { return m_bFinished; }
     [[nodiscard]] CGrabContext::eGrabPhase GetPhase() const;
 
+    static CPed* FindValidVictimForGrab(CPed* grabber, float* outDistance = nullptr);
+
     void RequestAction(CGrabContext::eGrabAction action);
     void ReleaseVictim();
 
 private:
-    CPed* FindValidVictim(CPed* grabber, float* outDistance = nullptr);
     bool InitializeGrab(CPed* grabber);
     bool AssignVictimTask();
 

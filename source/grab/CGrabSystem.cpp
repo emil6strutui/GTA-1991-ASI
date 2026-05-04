@@ -7,6 +7,7 @@
 #include <CPlayerPed.h>
 #include <CTimer.h>
 #include <CTaskManager.h>
+#include <CWeaponInfo.h>
 #include <CWorld.h>
 #include <algorithm>
 
@@ -103,6 +104,42 @@ namespace CGrabSystem
         return currentlyPressed && !previouslyPressed;
     }
 
+    static bool IsPlayerUsingMeleeWeaponForGrab(CPlayerPed* player)
+    {
+        if (!player) {
+            return false;
+        }
+
+        CWeapon* activeWeapon = player->GetWeapon();
+        if (!activeWeapon) {
+            return false;
+        }
+
+        CWeaponInfo* weaponInfo = CWeaponInfo::GetWeaponInfo(activeWeapon->m_eWeaponType, player->GetWeaponSkill());
+        return weaponInfo && weaponInfo->m_nWeaponFire == WEAPON_FIRE_MELEE;
+    }
+
+    static bool IsPlayerAimingForGrab(CPlayerPed* player)
+    {
+        if (!player) {
+            return false;
+        }
+
+        if (!IsPlayerUsingMeleeWeaponForGrab(player)) {
+            return false;
+        }
+
+        CPad* pad = CPad::GetPad(0);
+        if (!pad) {
+            return false;
+        }
+
+        return pad->GetTarget()
+            || player->bIsAimingGun
+            || player->m_pTargetedObject
+            || (player->m_pPlayerData && player->m_pPlayerData->m_bFreeAiming);
+    }
+
     static bool CanPlayerGrab(CPlayerPed* player)
     {
         if (!player) {
@@ -121,13 +158,16 @@ namespace CGrabSystem
             return false;
         }
 
+        if (!IsPlayerAimingForGrab(player)) {
+            return false;
+        }
+
         auto pedState = static_cast<unsigned int>(player->m_ePedState);
         if (pedState >= PEDSTATE_DEAD && pedState <= PEDSTATE_ARRESTED) {
             return false;
         }
 
         switch (player->m_ePedState) {
-        case PEDSTATE_AIMGUN:
         case PEDSTATE_JUMP:
         case PEDSTATE_FALL:
         case PEDSTATE_GETUP:
@@ -151,7 +191,7 @@ namespace CGrabSystem
             return false;
         }
 
-        if (player->bIsAimingGun || player->bFiringWeapon || player->bIsDucking || player->bIsInTheAir || player->bIsLanding || player->bIsDrowning || player->bHasAScriptBrain) {
+        if (player->bFiringWeapon || player->bIsDucking || player->bIsInTheAir || player->bIsLanding || player->bIsDrowning || player->bHasAScriptBrain) {
             return false;
         }
 
@@ -269,6 +309,10 @@ namespace CGrabSystem
         }
 
         if (!CanPlayerGrab(player)) {
+            return;
+        }
+
+        if (!CTaskComplexGrab::FindValidVictimForGrab(player)) {
             return;
         }
 
