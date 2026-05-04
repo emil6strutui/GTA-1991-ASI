@@ -48,6 +48,7 @@ public:
         INVALID_CONTEXT,
         ATTACKER_ABORTED,
         VICTIM_ABORTED,
+        GRABBER_DAMAGED,
         VICTIM_DIED
     };
 
@@ -241,6 +242,7 @@ public:
         switch (m_endReason) {
         case eGrabEndReason::ATTACKER_ABORTED:
         case eGrabEndReason::VICTIM_ABORTED:
+        case eGrabEndReason::GRABBER_DAMAGED:
         case eGrabEndReason::INVALID_CONTEXT:
             return true;
         default:

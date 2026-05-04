@@ -3,6 +3,7 @@
 #include "CTaskSimpleGrabbedHeld.h"
 #include "CTaskSimpleGrabbedHit.h"
 #include "CPostGrabReaction.h"
+#include "GrabAnimations.h"
 
 #include <plugin.h>
 #include <CAnimManager.h>
@@ -197,6 +198,10 @@ CTask* CTaskComplexGrabbed::CreateHeldTask()
 void CTaskComplexGrabbed::Cleanup(CPed* ped)
 {
     if (m_pContext) {
+        if (m_pContext->IsHardAbort() && ped && ped->m_fHealth > 0.0f) {
+            GrabAnimations::EnsureBaseAnimation(ped);
+        }
+
         m_pContext->ForceRestoreVictimCollisionDisable();
         m_pContext->SetVictimActive(false);
     }

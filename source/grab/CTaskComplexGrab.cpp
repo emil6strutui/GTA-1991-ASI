@@ -9,6 +9,7 @@
 #include <CColPoint.h>
 #include <CPad.h>
 #include <CTaskManager.h>
+#include <eEventType.h>
 #include <numbers>
 #include <cmath>
 #include <algorithm>
@@ -19,6 +20,30 @@ using namespace plugin;
 
 namespace {
     constexpr float MAX_GRAB_VERTICAL_GAP = 1.25f;
+    constexpr size_t EVENT_VMT_GET_EVENT_TYPE = 1;
+    constexpr size_t EVENT_VMT_GET_SOURCE_ENTITY = 10;
+
+    eEventType GetEventType(CEvent* event) {
+        using FnGetEventType = eEventType(__thiscall*)(CEvent*);
+        return reinterpret_cast<FnGetEventType>(
+            plugin::GetVMT(event, EVENT_VMT_GET_EVENT_TYPE)
+        )(event);
+    }
+
+    CEntity* GetEventSourceEntity(CEvent* event) {
+        using FnGetSourceEntity = CEntity*(__thiscall*)(CEvent*);
+        return reinterpret_cast<FnGetSourceEntity>(
+            plugin::GetVMT(event, EVENT_VMT_GET_SOURCE_ENTITY)
+        )(event);
+    }
+
+    bool IsExternalDamageToGrabber(CPed* grabber, CEvent* event) {
+        if (!grabber || !event || GetEventType(event) != EVENT_DAMAGE) {
+            return false;
+        }
+
+        return GetEventSourceEntity(event) != reinterpret_cast<CEntity*>(grabber);
+    }
 
     bool TaskTreeHasType(CTask* task, std::initializer_list<eTaskType> taskTypes) {
         for (; task; task = task->GetSubTask()) {
@@ -31,7 +56,7 @@ namespace {
         return false;
     }
 
-    bool HasDamageOrFallTask(CTask* task) {
+    bool HasIncompatibleVictimTask(CTask* task) {
         return TaskTreeHasType(task, {
             TASK_SIMPLE_GET_UP,
             TASK_COMPLEX_GET_UP_AND_STAND_STILL,
@@ -44,7 +69,14 @@ namespace {
             TASK_SIMPLE_HIT_FRONT,
             TASK_SIMPLE_HIT_LEFT,
             TASK_SIMPLE_HIT_RIGHT,
-            TASK_SIMPLE_HIT_BEHIND
+            TASK_SIMPLE_HIT_BEHIND,
+            TASK_SIMPLE_SIT_DOWN,
+            TASK_SIMPLE_SIT_IDLE,
+            TASK_SIMPLE_STAND_UP,
+            TASK_COMPLEX_SIT_DOWN_THEN_IDLE_THEN_STAND_UP,
+            TASK_INTERIOR_SIT_ON_CHAIR,
+            TASK_INTERIOR_SIT_AT_DESK,
+            TASK_INTERIOR_SIT_IN_RESTAURANT
         });
     }
 
@@ -63,6 +95,7 @@ namespace {
         case PEDSTATE_JUMP:
         case PEDSTATE_FALL:
         case PEDSTATE_GETUP:
+        case PEDSTATE_SIT:
         case PEDSTATE_STAGGER:
         case PEDSTATE_EVADE_DIVE:
         case PEDSTATE_ARREST_PLAYER:
@@ -109,13 +142,8 @@ namespace {
             return true;
         }
 
-        if (taskMgr.m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_TEMP]
-            || taskMgr.m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_NONTEMP]) {
-            return true;
-        }
-
-        return HasDamageOrFallTask(taskMgr.GetActiveTask())
-            || HasDamageOrFallTask(taskMgr.GetSimplestActiveTask());
+        return HasIncompatibleVictimTask(taskMgr.GetActiveTask())
+            || HasIncompatibleVictimTask(taskMgr.GetSimplestActiveTask());
     }
 
     bool CanTakeVictimResponseSlot(CPed* ped) {
@@ -200,6 +228,18 @@ CTaskComplexGrab::~CTaskComplexGrab()
 
 bool CTaskComplexGrab::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
+    if (m_pContext && !m_pContext->HasEnded() && IsExternalDamageToGrabber(ped, event)) {
+        m_pContext->Abort(CGrabContext::eGrabEndReason::GRABBER_DAMAGED);
+
+        if (m_pSubTask) {
+            m_pSubTask->MakeAbortable(ped, priority, event);
+        }
+
+        Cleanup();
+        m_bFinished = true;
+        return true;
+    }
+
     if (priority != ABORT_PRIORITY_IMMEDIATE && m_pContext && !m_pContext->HasEnded()) {
         return false;
     }
