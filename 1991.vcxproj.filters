@@ -69,7 +69,13 @@
     <ClCompile Include="source\grab\CTaskSimpleGrabAction.cpp">
       <Filter>source\grab</Filter>
     </ClCompile>
+    <ClCompile Include="source\grab\CTaskSimpleGrabEscape.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
     <ClCompile Include="source\grab\CTaskSimpleGrabbedHit.cpp">
+      <Filter>source\grab</Filter>
+    </ClCompile>
+    <ClCompile Include="source\grab\CTaskSimpleGrabbedEscape.cpp">
       <Filter>source\grab</Filter>
     </ClCompile>
   </ItemGroup>
@@ -143,7 +149,13 @@
     <ClInclude Include="source\grab\CTaskSimpleGrabAction.h">
       <Filter>source\grab</Filter>
     </ClInclude>
+    <ClInclude Include="source\grab\CTaskSimpleGrabEscape.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
     <ClInclude Include="source\grab\CTaskSimpleGrabbedHit.h">
+      <Filter>source\grab</Filter>
+    </ClInclude>
+    <ClInclude Include="source\grab\CTaskSimpleGrabbedEscape.h">
       <Filter>source\grab</Filter>
     </ClInclude>
   </ItemGroup>

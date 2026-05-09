@@ -9,7 +9,7 @@ This folder is the `1991` ASI mod. Treat it as the code you are changing.
 - `bin/GTA-SA/{Debug,Release}/1991.SA.asi` is the build output.
 - `../gta-reversed/` is a local reference implementation of GTA San Andreas internals. Use it to inspect original game behavior, class layouts, task logic, hook targets, and call flow before patching or reimplementing behavior.
 - `%PLUGIN_SDK_DIR%` points to the local plugin-sdk checkout, currently expected at `E:\Main GTA 1991\plugin-sdk`. Use plugin-sdk headers/libs as the API surface for writing mod code.
-
+- `E:\GTA RE Projects\sources` points to the location where the GTA 3, GTA VC and GTA LCS reversed code folders are located. Use this for validating implementations and research as well in case something is not found in the gta sa reversed code.
 ## Coding Guidance
 
 - Write changes in `1991`; do not modify `../gta-reversed` or `%PLUGIN_SDK_DIR%` unless explicitly asked.

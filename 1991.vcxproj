@@ -138,7 +138,9 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     <ClCompile Include="source\grab\CTaskSimpleGrabbedReach.cpp" />
     <ClCompile Include="source\grab\CTaskSimpleGrabHold.cpp" />
     <ClCompile Include="source\grab\CTaskSimpleGrabAction.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabEscape.cpp" />
     <ClCompile Include="source\grab\CTaskSimpleGrabbedHit.cpp" />
+    <ClCompile Include="source\grab\CTaskSimpleGrabbedEscape.cpp" />
     <ClCompile Include="source\grab\CTaskSimpleGrabReach.cpp" />
     <ClCompile Include="source\Main.cpp" />
     <ClCompile Include="source\hud\CHud1991.cpp" />
@@ -159,7 +161,9 @@ xcopy /Y "$(TargetPath)" "$(GTA_SA_DIR)\scripts"
     <ClInclude Include="source\grab\CTaskSimpleGrabbedReach.h" />
     <ClInclude Include="source\grab\CTaskSimpleGrabHold.h" />
     <ClInclude Include="source\grab\CTaskSimpleGrabAction.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabEscape.h" />
     <ClInclude Include="source\grab\CTaskSimpleGrabbedHit.h" />
+    <ClInclude Include="source\grab\CTaskSimpleGrabbedEscape.h" />
     <ClInclude Include="source\grab\CTaskSimpleGrabReach.h" />
     <ClInclude Include="source\grab\GrabAnimations.h" />
     <ClInclude Include="source\grab\GrabContext.h" />

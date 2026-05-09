@@ -102,6 +102,10 @@ bool CTaskSimpleGrabAction::ProcessPed(CPed* ped)
 
     // Check if the punch connects during the action animation
     CheckHitTrigger(ped);
+    if (m_action == CGrabContext::eGrabAction::JAB && m_pContext->IsEscapePendingOrInProgress()) {
+        FinishEarly(ped);
+        return true;
+    }
 
     // Lock rotation
     ped->m_fAimingRotation = ped->m_fCurrentRotation;
@@ -174,6 +178,23 @@ void CTaskSimpleGrabAction::CheckHitTrigger(CPed* ped)
 
         // Signal to victim's task that the hit connected
         m_pContext->SignalHitConnected();
+    }
+}
+
+void CTaskSimpleGrabAction::FinishEarly(CPed* ped)
+{
+    if (m_bFinished) {
+        return;
+    }
+
+    GrabAnimations::AbortAnimation(ped, m_pAnim, ABORT_PRIORITY_URGENT);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+
+    m_bAnimFinished = true;
+    m_bFinished = true;
+
+    if (m_pContext) {
+        m_pContext->OnGrabberActionComplete();
     }
 }
 

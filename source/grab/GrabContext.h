@@ -31,7 +31,8 @@ public:
         NONE,
         JAB,
         THROW,
-        UPPERCUT
+        UPPERCUT,
+        ESCAPE
     };
 
     enum class eGrabEndType : uint8_t
@@ -49,7 +50,8 @@ public:
         ATTACKER_ABORTED,
         VICTIM_ABORTED,
         GRABBER_DAMAGED,
-        VICTIM_DIED
+        VICTIM_DIED,
+        VICTIM_ESCAPED
     };
 
     // Task type IDs - must be unique
@@ -61,6 +63,9 @@ public:
     static constexpr eTaskType TASK_SIMPLE_GRABBED_REACH = static_cast<eTaskType>(9006);
     static constexpr eTaskType TASK_SIMPLE_GRABBED_HELD = static_cast<eTaskType>(9007);
     static constexpr eTaskType TASK_SIMPLE_GRABBED_HIT = static_cast<eTaskType>(9008);
+    static constexpr eTaskType TASK_SIMPLE_GRAB_ESCAPE = static_cast<eTaskType>(9009);
+    static constexpr eTaskType TASK_SIMPLE_GRABBED_ESCAPE = static_cast<eTaskType>(9010);
+    static constexpr uint8_t ESCAPE_JAB_THRESHOLD = 3;
 
 private:
     CPed* m_pGrabber = nullptr;
@@ -88,9 +93,14 @@ private:
     bool m_bHitConnected = false;
     bool m_bGrabberActionComplete = false;
     bool m_bVictimActionComplete = false;
+    bool m_bEscapePending = false;
+    bool m_bEscapeRequestedOnHold = false;
+    bool m_bEscapeStarted = false;
+    bool m_bEscapeImpactTriggered = false;
     bool m_bIgnoredCollisionOverridden = false;
     bool m_bVictimCollisionRestorePending = false;
     bool m_bVictimWasCollidable = false;
+    uint8_t m_nJabHitsThisGrab = 0;
     uint8_t m_nVictimCollisionDisableRefs = 0;
 
 public:
@@ -180,6 +190,23 @@ public:
         return false;
     }
 
+    [[nodiscard]] bool RecordJabHitAndCheckEscape() {
+        if (HasEnded() || m_currentAction != eGrabAction::JAB) {
+            return false;
+        }
+
+        if (m_nJabHitsThisGrab < 0xFF) {
+            ++m_nJabHitsThisGrab;
+        }
+
+        if (m_nJabHitsThisGrab >= ESCAPE_JAB_THRESHOLD && ArePedsValid()) {
+            m_bEscapePending = true;
+            return true;
+        }
+
+        return false;
+    }
+
     // Action management
     void RequestAction(eGrabAction action) {
         if (!HasEnded() && m_phase == eGrabPhase::HOLDING) {
@@ -187,7 +214,36 @@ public:
             m_phase = eGrabPhase::ACTION;
             m_bGrabberActionComplete = false;
             m_bVictimActionComplete = false;
+            if (action == eGrabAction::ESCAPE) {
+                m_bEscapeStarted = true;
+            }
         }
+    }
+
+    void RequestEscapeOnHold() {
+        if (!HasEnded()) {
+            m_bEscapeRequestedOnHold = true;
+        }
+    }
+
+    [[nodiscard]] bool ShouldRequestEscape() const {
+        return !HasEnded()
+            && m_phase == eGrabPhase::HOLDING
+            && m_currentAction == eGrabAction::NONE
+            && m_pendingAction == eGrabAction::NONE
+            && !m_bEscapeStarted
+            && (m_bEscapePending || m_bEscapeRequestedOnHold);
+    }
+
+    bool TryRequestEscape() {
+        if (!ShouldRequestEscape()) {
+            return false;
+        }
+
+        m_bEscapePending = false;
+        m_bEscapeRequestedOnHold = false;
+        RequestAction(eGrabAction::ESCAPE);
+        return true;
     }
 
     [[nodiscard]] eGrabAction ConsumePendingAction() {
@@ -198,6 +254,18 @@ public:
     }
 
     [[nodiscard]] eGrabAction GetCurrentAction() const { return m_currentAction; }
+    [[nodiscard]] bool HasPendingAction() const { return m_pendingAction != eGrabAction::NONE; }
+    [[nodiscard]] bool IsEscapeInProgress() const { return m_bEscapeStarted && !HasEnded(); }
+    [[nodiscard]] bool IsEscapePendingOrInProgress() const {
+        return !HasEnded()
+            && (m_bEscapePending
+                || m_bEscapeRequestedOnHold
+                || m_bEscapeStarted
+                || m_pendingAction == eGrabAction::ESCAPE
+                || m_currentAction == eGrabAction::ESCAPE);
+    }
+    [[nodiscard]] bool HasEscapeImpactTriggered() const { return m_bEscapeImpactTriggered; }
+    void OnEscapeImpact() { m_bEscapeImpactTriggered = true; }
     [[nodiscard]] bool IsGrabberActionComplete() const { return m_bGrabberActionComplete; }
     // Dual action-completion tracking.
     // Phase stays ACTION until BOTH sides finish their animation.

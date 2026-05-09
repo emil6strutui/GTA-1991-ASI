@@ -13,6 +13,7 @@ namespace CPostGrabReaction
     bool ApplyDamageWithoutReaction(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak);
     bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak);
     bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, uint8_t direction, bool forceFallDown, bool bSpeak);
+    bool QueueZeroDamageMeleeChestEvent(CPed* victim, CPed* attacker, uint8_t direction, bool bSpeak);
 
     /**
      * Trigger a reaction in the victim after being released from a grab.
@@ -23,4 +24,5 @@ namespace CPostGrabReaction
      */
     void TriggerReaction(CPed* victim, CPed* attacker);
     void TriggerReleasePush(CPed* victim, CPed* attacker);
+    void TriggerThreatResponse(CPed* victim, CPed* threat);
 }

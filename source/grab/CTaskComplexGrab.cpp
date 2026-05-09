@@ -1,8 +1,10 @@
 #include "CTaskComplexGrab.h"
+#include "CGrabSystem.h"
 #include "CTaskComplexGrabbed.h"
 #include "CTaskSimpleGrabReach.h"
 #include "CTaskSimpleGrabHold.h"
 #include "CTaskSimpleGrabAction.h"
+#include "CTaskSimpleGrabEscape.h"
 
 #include <plugin.h>
 #include <CWorld.h>
@@ -43,6 +45,14 @@ namespace {
         }
 
         return GetEventSourceEntity(event) != reinterpret_cast<CEntity*>(grabber);
+    }
+
+    bool IsScriptedEscapeDamageToGrabber(const GrabContextPtr& context, CPed* grabber, CEvent* event) {
+        if (!context || !grabber || !event || GetEventType(event) != EVENT_DAMAGE || !context->IsEscapeInProgress()) {
+            return false;
+        }
+
+        return GetEventSourceEntity(event) == reinterpret_cast<CEntity*>(context->GetVictim());
     }
 
     bool TaskTreeHasType(CTask* task, std::initializer_list<eTaskType> taskTypes) {
@@ -228,7 +238,10 @@ CTaskComplexGrab::~CTaskComplexGrab()
 
 bool CTaskComplexGrab::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
 {
-    if (m_pContext && !m_pContext->HasEnded() && IsExternalDamageToGrabber(ped, event)) {
+    if (m_pContext
+        && !m_pContext->HasEnded()
+        && IsExternalDamageToGrabber(ped, event)
+        && !IsScriptedEscapeDamageToGrabber(m_pContext, ped, event)) {
         m_pContext->Abort(CGrabContext::eGrabEndReason::GRABBER_DAMAGED);
 
         if (m_pSubTask) {
@@ -301,7 +314,13 @@ CTask* CTaskComplexGrab::CreateNextSubTask(CPed* ped)
     // shared phase. One side can finish a paired stage a frame earlier.
     switch (m_pSubTask ? m_pSubTask->GetId() : static_cast<eTaskType>(-1)) {
     case CGrabContext::TASK_SIMPLE_GRAB_REACH:
+    case CGrabContext::TASK_SIMPLE_GRAB_ESCAPE:
+        return CreateHoldTask();
+
     case CGrabContext::TASK_SIMPLE_GRAB_ACTION:
+        if (m_pContext->TryRequestEscape()) {
+            return CreateActionTask(CGrabContext::eGrabAction::ESCAPE);
+        }
         return CreateHoldTask();
 
     case CGrabContext::TASK_SIMPLE_GRAB_HOLD:
@@ -342,7 +361,7 @@ CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
 
     const auto phase = m_pContext->GetPhase();
     if (phase == CGrabContext::eGrabPhase::RELEASING || phase == CGrabContext::eGrabPhase::FINISHED) {
-        if (m_pContext->IsSoftRelease() && ped && ped->m_pRwClump) {
+        if (m_pContext->GetEndReason() == CGrabContext::eGrabEndReason::MANUAL_RELEASE && ped && ped->m_pRwClump) {
             GrabAnimations::EnsureBaseAnimation(ped);
 
             if (CAnimBlendHierarchy* hier = GrabAnimations::GetAnimation(GrabAnimations::ANIM_GRAB_RELEASE)) {
@@ -389,6 +408,10 @@ CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
     const auto subTaskType = m_pSubTask->GetId();
 
     if (subTaskType == CGrabContext::TASK_SIMPLE_GRAB_HOLD && phase == CGrabContext::eGrabPhase::HOLDING) {
+        if (m_pContext->TryRequestEscape()) {
+            return CreateActionTask(CGrabContext::eGrabAction::ESCAPE);
+        }
+
         if (IsAttackPressed()) {
             m_pContext->RequestAction(CGrabContext::eGrabAction::JAB);
             return CreateActionTask(CGrabContext::eGrabAction::JAB);
@@ -415,7 +438,7 @@ void CTaskComplexGrab::RequestAction(CGrabContext::eGrabAction action)
 
 void CTaskComplexGrab::ReleaseVictim()
 {
-    if (m_pContext) {
+    if (m_pContext && !m_pContext->IsEscapePendingOrInProgress()) {
         m_pContext->Release(CGrabContext::eGrabEndReason::MANUAL_RELEASE);
     }
 }
@@ -458,7 +481,7 @@ CPed* CTaskComplexGrab::FindValidVictimForGrab(CPed* grabber, float* outDistance
             continue;
         }
 
-        if (ped->bIsInTheAir || ped->bIsLanding || ped->bIsBeingArrested || ped->bHasAScriptBrain) {
+        if (ped->bIsInTheAir || ped->bIsLanding || ped->bIsBeingArrested) {
             continue;
         }
 
@@ -515,6 +538,9 @@ bool CTaskComplexGrab::InitializeGrab(CPed* grabber)
 
     // Create shared context
     m_pContext = CGrabContext::Create(grabber, victim, distance);
+    if (m_pContext && CGrabSystem::HasEscapedVictim(victim)) {
+        m_pContext->RequestEscapeOnHold();
+    }
     
     return m_pContext != nullptr;
 }
@@ -558,6 +584,10 @@ CTask* CTaskComplexGrab::CreateHoldTask()
 
 CTask* CTaskComplexGrab::CreateActionTask(CGrabContext::eGrabAction action)
 {
+    if (action == CGrabContext::eGrabAction::ESCAPE) {
+        return reinterpret_cast<CTask*>(new CTaskSimpleGrabEscape(m_pContext));
+    }
+
     return reinterpret_cast<CTask*>(new CTaskSimpleGrabAction(m_pContext, action));
 }
 

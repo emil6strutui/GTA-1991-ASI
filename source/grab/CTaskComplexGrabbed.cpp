@@ -2,6 +2,7 @@
 #include "CTaskSimpleGrabbedReach.h"
 #include "CTaskSimpleGrabbedHeld.h"
 #include "CTaskSimpleGrabbedHit.h"
+#include "CTaskSimpleGrabbedEscape.h"
 #include "CPostGrabReaction.h"
 #include "GrabAnimations.h"
 
@@ -102,10 +103,14 @@ CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
     switch (m_pSubTask ? m_pSubTask->GetId() : static_cast<eTaskType>(-1)) {
     case CGrabContext::TASK_SIMPLE_GRABBED_REACH:
     case CGrabContext::TASK_SIMPLE_GRABBED_HIT:
+    case CGrabContext::TASK_SIMPLE_GRABBED_ESCAPE:
         return CreateHeldTask();
 
     case CGrabContext::TASK_SIMPLE_GRABBED_HELD:
         if (const auto action = m_pContext->GetCurrentAction(); action != CGrabContext::eGrabAction::NONE) {
+            if (action == CGrabContext::eGrabAction::ESCAPE) {
+                return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedEscape(m_pContext));
+            }
             return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedHit(m_pContext, action));
         }
         return CreateHeldTask();
@@ -123,6 +128,9 @@ CTask* CTaskComplexGrabbed::CreateNextSubTask(CPed* ped)
 
     case CGrabContext::eGrabPhase::ACTION:
         if (const auto action = m_pContext->GetCurrentAction(); action != CGrabContext::eGrabAction::NONE) {
+            if (action == CGrabContext::eGrabAction::ESCAPE) {
+                return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedEscape(m_pContext));
+            }
             return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedHit(m_pContext, action));
         }
         return CreateHeldTask();
@@ -176,8 +184,15 @@ CTask* CTaskComplexGrabbed::ControlSubTask(CPed* ped)
 
     // Transition from held to hit when grabber initiates an action - external condition (grabber jabbed)
     if (subTaskType == CGrabContext::TASK_SIMPLE_GRABBED_HELD && phase == CGrabContext::eGrabPhase::ACTION) {
-        auto action = m_pContext->ConsumePendingAction();
-        if (action != CGrabContext::eGrabAction::NONE) {
+        if (m_pContext->GetCurrentAction() == CGrabContext::eGrabAction::ESCAPE) {
+            return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedEscape(m_pContext));
+        }
+
+        if (m_pContext->HasPendingAction()) {
+            auto action = m_pContext->ConsumePendingAction();
+            if (action == CGrabContext::eGrabAction::ESCAPE) {
+                return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedEscape(m_pContext));
+            }
             return reinterpret_cast<CTask*>(new CTaskSimpleGrabbedHit(m_pContext, action));
         }
     }
@@ -221,6 +236,12 @@ void CTaskComplexGrabbed::TriggerFallbackReaction(CPed* ped)
     if (m_pContext->GetEndReason() == CGrabContext::eGrabEndReason::MANUAL_RELEASE) {
         m_bReactionTriggered = true;
         CPostGrabReaction::TriggerReleasePush(ped, grabber);
+        return;
+    }
+
+    if (m_pContext->GetEndReason() == CGrabContext::eGrabEndReason::VICTIM_ESCAPED) {
+        m_bReactionTriggered = true;
+        CPostGrabReaction::TriggerThreatResponse(ped, grabber);
         return;
     }
 

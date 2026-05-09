@@ -10,6 +10,7 @@
 #include <CWeaponInfo.h>
 #include <CWorld.h>
 #include <algorithm>
+#include <list>
 
 using namespace plugin;
 
@@ -18,6 +19,43 @@ namespace CGrabSystem
     namespace {
         constexpr uint32_t GRAB_RESTART_COOLDOWN_MS = 800;
         uint32_t s_nextGrabStartTime = 0;
+
+        std::list<CPed*> s_escapedVictims;
+
+        void RegisterPedReference(CPed*& ped) {
+            if (ped) {
+                ped->RegisterReference(reinterpret_cast<CEntity**>(&ped));
+            }
+        }
+
+        void CleanUpPedReference(CPed*& ped) {
+            if (ped) {
+                ped->CleanUpOldReference(reinterpret_cast<CEntity**>(&ped));
+                ped = nullptr;
+            }
+        }
+
+        bool IsEscapedVictimEntryValid(CPed* ped) {
+            return ped && ped->m_fHealth > 0.0f && !ped->m_pVehicle && ped->m_pIntelligence;
+        }
+
+        void PruneEscapedVictims() {
+            for (auto it = s_escapedVictims.begin(); it != s_escapedVictims.end();) {
+                if (!IsEscapedVictimEntryValid(*it)) {
+                    CleanUpPedReference(*it);
+                    it = s_escapedVictims.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        void ClearEscapeState() {
+            for (auto& ped : s_escapedVictims) {
+                CleanUpPedReference(ped);
+            }
+            s_escapedVictims.clear();
+        }
 
         bool IsGrabStartCoolingDown() {
             return CTimer::m_snTimeInMilliseconds < s_nextGrabStartTime;
@@ -70,6 +108,7 @@ namespace CGrabSystem
                 intel.ClearTaskDuckSecondary();
             }
         }
+
     }
 
     static int s_debugCountdown = -1;
@@ -92,6 +131,29 @@ namespace CGrabSystem
         s_debugPed = ped;
         s_debugPed->RegisterReference(reinterpret_cast<CEntity**>(&s_debugPed));
         s_debugCountdown = frames;
+    }
+
+    void RegisterEscapedVictim(CPed* ped) {
+        if (!IsEscapedVictimEntryValid(ped)) {
+            return;
+        }
+
+        PruneEscapedVictims();
+        if (std::find(s_escapedVictims.begin(), s_escapedVictims.end(), ped) != s_escapedVictims.end()) {
+            return;
+        }
+
+        s_escapedVictims.push_back(ped);
+        RegisterPedReference(s_escapedVictims.back());
+    }
+
+    bool HasEscapedVictim(CPed* ped) {
+        if (!ped) {
+            return false;
+        }
+
+        PruneEscapedVictims();
+        return std::find(s_escapedVictims.begin(), s_escapedVictims.end(), ped) != s_escapedVictims.end();
     }
 
     static CPlayerPed* GetPlayer() {
@@ -238,6 +300,7 @@ namespace CGrabSystem
 
     static void OnGameProcess()
     {
+        PruneEscapedVictims();
 
         if (s_debugCountdown > 0) {
             s_debugCountdown--;
@@ -321,5 +384,7 @@ namespace CGrabSystem
 
     void InstallHooks() {
         Events::gameProcessEvent += OnGameProcess;
+        Events::reInitGameEvent += ClearEscapeState;
+        Events::shutdownRwEvent.before += ClearEscapeState;
     }
 }

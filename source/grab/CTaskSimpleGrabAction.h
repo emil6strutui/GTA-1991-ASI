@@ -42,6 +42,7 @@ public:
 private:
     void StartAnimation(CPed* ped);
     void CheckHitTrigger(CPed* ped);
+    void FinishEarly(CPed* ped);
     void Cleanup();
     [[nodiscard]] const char* GetAnimationName() const;
     

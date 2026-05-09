@@ -30,8 +30,12 @@ bool CTaskSimpleGrabbedHeld::MakeAbortable(CPed* ped, eAbortPriority priority, C
 {
     const auto phase = m_pContext ? m_pContext->GetPhase() : CGrabContext::eGrabPhase::FINISHED;
 
-    if (m_pContext && phase == CGrabContext::eGrabPhase::ACTION && m_pAnim) {
-        GrabAnimations::ReleaseAnimation(m_pAnim);
+    if (m_pContext && phase == CGrabContext::eGrabPhase::ACTION) {
+        if (m_pContext->IsEscapePendingOrInProgress()) {
+            GrabAnimations::AbortAnimation(ped, m_pAnim, ABORT_PRIORITY_URGENT);
+        } else {
+            GrabAnimations::ReleaseAnimation(m_pAnim);
+        }
 
         if (m_bCollisionDisabled && m_pContext) {
             m_pContext->ReleaseVictimCollisionDisable();

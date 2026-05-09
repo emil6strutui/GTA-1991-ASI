@@ -22,6 +22,7 @@ namespace GrabAnimations
     static constexpr const char* ANIM_GRAB = "Fight_grab";
     static constexpr const char* ANIM_GRAB_IDLE = "Fight_grab_idle";
     static constexpr const char* ANIM_GRAB_JAB = "Fight_grab_jab";
+    static constexpr const char* ANIM_GRAB_BREAK = "Fight_grab_break";
     static constexpr const char* ANIM_GRAB_RELEASE = "Fight_grb_r";
     static constexpr const char* ANIM_GRAB_THROW = "Fight_grb_r";
     static constexpr const char* ANIM_GRAB_UPPERCUT = "Fight_grab_stom";
@@ -30,6 +31,7 @@ namespace GrabAnimations
     static constexpr const char* ANIM_GRABBED = "Fight_grabbed";
     static constexpr const char* ANIM_GRABBED_IDLE = "Fight_grabbed_idle";
     static constexpr const char* ANIM_GRABBED_JAB = "Fight_grabbed_jab";
+    static constexpr const char* ANIM_GRABBED_BREAK = "Fight_grabbed_break";
     static constexpr const char* ANIM_GRABBED_THROW = "Fight_grabbed_throw";
     static constexpr const char* ANIM_GRABBED_UPPERCUT = "Fight_grabbed_stom";
 
@@ -38,6 +40,7 @@ namespace GrabAnimations
     static constexpr float FINAL_OFFSET_FORWARD = 0.5f;
     static constexpr float OFFSET_Z = 0.0f;
     static constexpr float START_BLEND_DELTA = 1000.0f;
+    static constexpr float ESCAPE_BREAK_ANIM_SPEED = 0.8f;
 
     // CDefaultAnimCallback::DefaultAnimCB - does nothing (just retn)
     static auto DefaultAnimCB = reinterpret_cast<void(*)(CAnimBlendAssociation*, void*)>(0x4D1390);

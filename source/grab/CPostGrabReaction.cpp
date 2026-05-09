@@ -30,13 +30,18 @@ namespace CPostGrabReaction
 
         using FnEventDamageAffectsPed = bool(__thiscall*)(void* thisPtr, CPed* ped);
         using FnEventGroupAdd = void*(__thiscall*)(CEventGroup* thisPtr, void* event, bool bValid);
+        using FnEventAcquaintancePedHateConstructor = void*(__thiscall*)(void* thisPtr, CPed* ped);
 
         static auto EventDamage_Ctor = reinterpret_cast<FnEventDamageConstructor>(0x4AD830);
         static auto EventDamage_AffectsPed = reinterpret_cast<FnEventDamageAffectsPed>(0x4B35A0);
         static auto EventGroup_Add = reinterpret_cast<FnEventGroupAdd>(0x4AB420);
+        static auto EventAcquaintancePedHate_Ctor = reinterpret_cast<FnEventAcquaintancePedHateConstructor>(0x420E70);
 
         static constexpr size_t EVENT_DAMAGE_SIZE = 0x44;
+        static constexpr size_t EVENT_ACQUAINTANCE_PED_SIZE = 0x18;
         static constexpr size_t SOURCE_ENTITY_OFFSET = 0x14;
+        static constexpr size_t ACQUAINTANCE_PED_OFFSET = 0x14;
+        static constexpr size_t EDITABLE_RESPONSE_TASK_ID_OFFSET = 0x0E;
         static constexpr size_t DAMAGE_FLAGS_OFFSET = 0x25;
         static constexpr size_t DAMAGE_RESPONSE_OFFSET = 0x38;
         static constexpr uint8_t DAMAGE_FLAG_FALL_DOWN = 1u << 1;
@@ -64,6 +69,34 @@ namespace CPostGrabReaction
             if (*ppSourceEntity) {
                 (*ppSourceEntity)->CleanUpOldReference(ppSourceEntity);
             }
+        }
+
+        void CleanUpAcquaintancePedRef(uint8_t* eventBuffer) {
+            CPed** ppPed = reinterpret_cast<CPed**>(eventBuffer + ACQUAINTANCE_PED_OFFSET);
+            if (*ppPed) {
+                (*ppPed)->CleanUpOldReference(reinterpret_cast<CEntity**>(ppPed));
+            }
+        }
+
+        void ClearCurrentEventResponses(CPed* ped) {
+            if (!ped || !ped->m_pIntelligence) {
+                return;
+            }
+
+            CTaskManager* taskMgr = &ped->m_pIntelligence->m_TaskMgr;
+            CTask* nonTempTask = taskMgr->m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_NONTEMP];
+            if (nonTempTask) {
+                nonTempTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+            }
+
+            CTask* tempTask = taskMgr->m_aPrimaryTasks[TASK_PRIMARY_EVENT_RESPONSE_TEMP];
+            if (tempTask) {
+                tempTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+            }
+        }
+
+        eTaskType ChooseEscapeThreatTask() {
+            return TASK_COMPLEX_KILL_PED_ON_FOOT;
         }
 
         void ApplyReleasePushForce(CPed* victim, CPed* attacker) {
@@ -171,6 +204,58 @@ namespace CPostGrabReaction
         return true;
     }
 
+    bool QueueZeroDamageMeleeChestEvent(CPed* victim, CPed* attacker, uint8_t direction, bool bSpeak) {
+        (void)bSpeak;
+
+        if (!victim || !attacker || !victim->m_pIntelligence || victim->m_fHealth <= 0.0f) {
+            return false;
+        }
+
+        alignas(8) uint8_t eventBuffer[EVENT_DAMAGE_SIZE];
+
+        EventDamage_Ctor(
+            eventBuffer,
+            reinterpret_cast<CEntity*>(attacker),
+            CTimer::m_snTimeInMilliseconds,
+            WEAPONTYPE_UNARMED,
+            PED_PIECE_TORSO,
+            direction,
+            false,
+            victim->bInVehicle
+        );
+
+        if (!EventDamage_AffectsPed(eventBuffer, victim)) {
+            CleanUpEventDamageSourceRef(eventBuffer);
+            return false;
+        }
+
+        auto* response = reinterpret_cast<CPedDamageResponse*>(eventBuffer + DAMAGE_RESPONSE_OFFSET);
+        response->m_fDamageHealth = 0.0f;
+        response->m_fDamageArmor = 0.0f;
+        response->m_bHealthZero = false;
+        response->m_bForceDeath = false;
+        response->m_bDamageCalculated = true;
+        response->m_bCheckIfAffectsPed = false;
+
+        EventGroup_Add(&victim->m_pIntelligence->m_eventGroup, eventBuffer, false);
+        CleanUpEventDamageSourceRef(eventBuffer);
+        return true;
+    }
+
+    static bool QueueThreatEvent(CPed* victim, CPed* threat) {
+        if (!victim || !threat || victim == threat || !victim->m_pIntelligence || victim->m_fHealth <= 0.0f || threat->m_fHealth <= 0.0f) {
+            return false;
+        }
+
+        alignas(8) uint8_t eventBuffer[EVENT_ACQUAINTANCE_PED_SIZE];
+
+        EventAcquaintancePedHate_Ctor(eventBuffer, threat);
+        *reinterpret_cast<int16_t*>(eventBuffer + EDITABLE_RESPONSE_TASK_ID_OFFSET) = static_cast<int16_t>(ChooseEscapeThreatTask());
+        EventGroup_Add(&victim->m_pIntelligence->m_eventGroup, eventBuffer, false);
+        CleanUpAcquaintancePedRef(eventBuffer);
+        return true;
+    }
+
     void TriggerReaction(CPed* victim, CPed* attacker)
     {
         if (!victim || !attacker) {
@@ -226,5 +311,15 @@ namespace CPostGrabReaction
             true,
             false
         );
+    }
+
+    void TriggerThreatResponse(CPed* victim, CPed* threat)
+    {
+        if (!victim || !threat || victim == threat || !victim->m_pIntelligence || victim->m_fHealth <= 0.0f || threat->m_fHealth <= 0.0f) {
+            return;
+        }
+
+        ClearCurrentEventResponses(victim);
+        QueueThreatEvent(victim, threat);
     }
 }

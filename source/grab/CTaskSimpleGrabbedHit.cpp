@@ -111,6 +111,9 @@ bool CTaskSimpleGrabbedHit::ProcessPed(CPed* ped)
 
     // Check if the grabber signalled that the hit connected
     CheckDamageTrigger(ped);
+    if (m_bFinished) {
+        return true;
+    }
 
     if (m_bDamageApplied && m_pContext->IsGrabberActionComplete()) {
         FinishEarly();
@@ -186,6 +189,11 @@ void CTaskSimpleGrabbedHit::CheckDamageTrigger(CPed* ped)
 
     CPed* grabber = m_pContext->GetGrabber();
     if (!grabber) {
+        return;
+    }
+
+    if (m_pContext->RecordJabHitAndCheckEscape()) {
+        FinishEarly();
         return;
     }
 
