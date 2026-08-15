@@ -15,7 +15,7 @@ This folder is the `1991` ASI mod. Treat it as the code you are changing.
 - Write changes in `1991`; do not modify `../gta-reversed` or `%PLUGIN_SDK_DIR%` unless explicitly asked.
 - Prefer plugin-sdk types, helpers, and hook/patch utilities when implementing San Andreas code.
 - Use `gta-reversed` to verify semantics when touching game systems such as tasks, animation, HUD, markers, RenderWare, or ped/player logic.
-- If `gta-reversed` only has an address or unreversed stub for needed game behavior, ask the user for IDA pseudocode and/or assembly before guessing the implementation.
+- The user has an IDA database for the GTA San Andreas 1.0 US executable. If `gta-reversed`, plugin-sdk, or the other reversed projects are missing any required behavior, contain only an address/unreversed stub, or leave call semantics uncertain, ask the user for the relevant IDA pseudocode and/or assembly before guessing the implementation.
 - Keep the project targeting GTA San Andreas 1.0 US: `PLUGIN_SGV_10US`, `GTASA`, Win32, v143.
 - If new `.cpp` or `.h` files are added, include them in `1991.vcxproj` and `1991.vcxproj.filters`.
 

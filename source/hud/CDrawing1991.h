@@ -9,6 +9,7 @@
 
 #include <CSprite2d.h>
 #include <RenderWare.h>
+#include <algorithm>
 #include <cmath>
 
 namespace Drawing {
@@ -67,6 +68,42 @@ inline void Semicircle(float cx, float cy, float radius, float startAngle, float
     }
 
     RwIm2DRenderPrimitive(rwPRIMTYPETRIFAN, verts, segments + 2);
+}
+
+inline void FilledRoundedRect(float x, float y, float w, float h, float radius,
+                              int segments, CRGBA color) {
+    constexpr float pi = 3.14159265358979323846f;
+
+    if (w <= 0.0f || h <= 0.0f)
+        return;
+
+    radius = std::clamp(radius, 0.0f, std::min(w, h) * 0.5f);
+    if (radius <= 0.0f) {
+        FilledRect(x, y, w, h, color);
+        return;
+    }
+
+    FilledRect(x + radius, y, w - radius * 2.0f, h, color);
+    FilledRect(x, y + radius, w, h - radius * 2.0f, color);
+
+    Semicircle(x + radius, y + radius, radius, pi, pi * 1.5f, segments, color);
+    Semicircle(x + w - radius, y + radius, radius, -pi * 0.5f, 0.0f, segments, color);
+    Semicircle(x + w - radius, y + h - radius, radius, 0.0f, pi * 0.5f, segments, color);
+    Semicircle(x + radius, y + h - radius, radius, pi * 0.5f, pi, segments, color);
+}
+
+inline void FilledRoundedRectWithBorder(float x, float y, float w, float h, float radius,
+                                        float border, int segments, CRGBA color, CRGBA borderColor) {
+    FilledRoundedRect(
+        x - border,
+        y - border,
+        w + border * 2.0f,
+        h + border * 2.0f,
+        radius + border,
+        segments,
+        borderColor
+    );
+    FilledRoundedRect(x, y, w, h, radius, segments, color);
 }
 
 // ============================================================================

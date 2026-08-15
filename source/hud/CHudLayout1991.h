@@ -41,14 +41,32 @@ struct CHudLayout1991 {
     CRGBA breathBG = CRGBA(86, 71, 52, 180);
     CRGBA barBorderColor = CRGBA(0, 0, 0, 255);
 
-    // Wanted stars
-    float starsX = 10.0f;
-    float starsY = 320.0f;
-    float starSpacing = 20.0f;
-    float starScaleX = 0.53f;
-    float starScaleY = 0.95f;
-    float starEmptyScale = 1.2f;
-    float starEmptyYOffset = 2.0f;
+    // Unified radar housing and wanted-level police siren
+    // Width is Y-scaled in CHud1991.cpp so the viewport keeps this aspect ratio.
+    float radarLeftMargin = 20.0f; // visual margin, calibrated against the weapon icon
+    float radarViewportBottomMargin = 28.0f;
+    float radarViewportWidth = 83.0f;
+    float radarViewportHeight = 63.0f;
+    float radarHousingPadding = 1.5f; // with the 1.25 outline: 2.25 total on left/right/bottom
+    float radarSirenBezelHeight = 10.0f;
+    float radarSirenMapGap = 5.0f; // visual clearance for blips centered on the map's top edge
+    float radarHousingCornerRadius = 2.5f;
+    float radarHousingBorder = 1.25f;
+    float radarSirenInset = 3.0f;
+    float radarNorthMarkerInset = 3.0f;
+
+    float wantedSirenLightHeight = 4.0f;
+    float wantedSirenLightSpacing = 1.8f;
+    float wantedSirenLightPadding = 2.0f;
+    float wantedSirenLightBorder = 0.45f;
+    float wantedSirenGlowSize = 0.65f;
+    unsigned int wantedSirenPulseMs = 180;
+
+    CRGBA radarHousing = CRGBA(8, 10, 15, 245);
+    CRGBA radarHousingEdge = CRGBA(0, 0, 0, 255);
+    CRGBA wantedSirenRed = CRGBA(255, 32, 64, 255);
+    CRGBA wantedSirenBlue = CRGBA(32, 112, 255, 255);
+    CRGBA wantedSirenLightEdge = CRGBA(0, 0, 0, 230);
 
     // Visibility
     bool showClock = true;
@@ -58,7 +76,7 @@ struct CHudLayout1991 {
     bool showHealthBar = true;
     bool showArmorBar = true;
     bool showBreathBar = true;
-    bool showStars = true;
+    bool showWantedSirens = true;
 };
 
 extern CHudLayout1991 HudLayout;
