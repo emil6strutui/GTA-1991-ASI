@@ -1,0 +1,390 @@
+#include "CGrabSystem.h"
+#include "CTaskComplexGrab.h"
+#include "GrabContext.h"
+
+#include <plugin.h>
+#include <CPad.h>
+#include <CPlayerPed.h>
+#include <CTimer.h>
+#include <CTaskManager.h>
+#include <CWeaponInfo.h>
+#include <CWorld.h>
+#include <algorithm>
+#include <list>
+
+using namespace plugin;
+
+namespace CGrabSystem
+{
+    namespace {
+        constexpr uint32_t GRAB_RESTART_COOLDOWN_MS = 800;
+        uint32_t s_nextGrabStartTime = 0;
+
+        std::list<CPed*> s_escapedVictims;
+
+        void RegisterPedReference(CPed*& ped) {
+            if (ped) {
+                ped->RegisterReference(reinterpret_cast<CEntity**>(&ped));
+            }
+        }
+
+        void CleanUpPedReference(CPed*& ped) {
+            if (ped) {
+                ped->CleanUpOldReference(reinterpret_cast<CEntity**>(&ped));
+                ped = nullptr;
+            }
+        }
+
+        bool IsEscapedVictimEntryValid(CPed* ped) {
+            return ped && ped->m_fHealth > 0.0f && !ped->m_pVehicle && ped->m_pIntelligence;
+        }
+
+        void PruneEscapedVictims() {
+            for (auto it = s_escapedVictims.begin(); it != s_escapedVictims.end();) {
+                if (!IsEscapedVictimEntryValid(*it)) {
+                    CleanUpPedReference(*it);
+                    it = s_escapedVictims.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        void ClearEscapeState() {
+            for (auto& ped : s_escapedVictims) {
+                CleanUpPedReference(ped);
+            }
+            s_escapedVictims.clear();
+        }
+
+        bool IsGrabStartCoolingDown() {
+            return CTimer::m_snTimeInMilliseconds < s_nextGrabStartTime;
+        }
+
+        void BlockGrabStartBriefly() {
+            s_nextGrabStartTime = std::max(
+                s_nextGrabStartTime,
+                CTimer::m_snTimeInMilliseconds + GRAB_RESTART_COOLDOWN_MS
+            );
+        }
+
+        bool CanTakeGrabberResponseSlot(CPlayerPed* player) {
+            if (!player || !player->m_pIntelligence) {
+                return false;
+            }
+
+            auto& taskMgr = player->m_pIntelligence->m_TaskMgr;
+            auto* currentTask = taskMgr.m_aPrimaryTasks[TASK_PRIMARY_PHYSICAL_RESPONSE];
+            if (!currentTask) {
+                return true;
+            }
+
+            if (currentTask->GetId() == CTaskComplexGrab::Type) {
+                return true;
+            }
+
+            return currentTask->MakeAbortable(player, ABORT_PRIORITY_IMMEDIATE, nullptr);
+        }
+
+        void ForceAbortSecondaryGrabConflicts(CPed* ped) {
+            if (!ped || !ped->m_pIntelligence) {
+                return;
+            }
+
+            auto& intel = *ped->m_pIntelligence;
+            auto& taskMgr = intel.m_TaskMgr;
+
+            if (auto* attackTask = taskMgr.GetTaskSecondary(TASK_SECONDARY_ATTACK)) {
+                attackTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+                taskMgr.SetTaskSecondary(nullptr, TASK_SECONDARY_ATTACK);
+            }
+
+            if (auto* partialAnimTask = taskMgr.GetTaskSecondary(TASK_SECONDARY_PARTIAL_ANIM)) {
+                partialAnimTask->MakeAbortable(ped, ABORT_PRIORITY_IMMEDIATE, nullptr);
+                taskMgr.SetTaskSecondary(nullptr, TASK_SECONDARY_PARTIAL_ANIM);
+            }
+
+            if (taskMgr.GetTaskSecondary(TASK_SECONDARY_DUCK)) {
+                intel.ClearTaskDuckSecondary();
+            }
+        }
+
+    }
+
+    static int s_debugCountdown = -1;
+    static CPed* s_debugPed = nullptr;
+
+    static void ClearDelayedDebugPed() {
+        if (s_debugPed) {
+            s_debugPed->CleanUpOldReference(reinterpret_cast<CEntity**>(&s_debugPed));
+            s_debugPed = nullptr;
+        }
+    }
+
+    void StartDelayedDebug(CPed* ped, int frames = 60) {
+        ClearDelayedDebugPed();
+        if (!ped) {
+            s_debugCountdown = -1;
+            return;
+        }
+
+        s_debugPed = ped;
+        s_debugPed->RegisterReference(reinterpret_cast<CEntity**>(&s_debugPed));
+        s_debugCountdown = frames;
+    }
+
+    void RegisterEscapedVictim(CPed* ped) {
+        if (!IsEscapedVictimEntryValid(ped)) {
+            return;
+        }
+
+        PruneEscapedVictims();
+        if (std::find(s_escapedVictims.begin(), s_escapedVictims.end(), ped) != s_escapedVictims.end()) {
+            return;
+        }
+
+        s_escapedVictims.push_back(ped);
+        RegisterPedReference(s_escapedVictims.back());
+    }
+
+    bool HasEscapedVictim(CPed* ped) {
+        if (!ped) {
+            return false;
+        }
+
+        PruneEscapedVictims();
+        return std::find(s_escapedVictims.begin(), s_escapedVictims.end(), ped) != s_escapedVictims.end();
+    }
+
+    static CPlayerPed* GetPlayer() {
+        return FindPlayerPed(0);
+    }
+
+    static bool IsGrabKeyJustPressed() {
+        bool currentlyPressed = CPad::NewKeyState.standardKeys[GRAB_KEY] != 0;
+        bool previouslyPressed = CPad::OldKeyState.standardKeys[GRAB_KEY] != 0;
+        return currentlyPressed && !previouslyPressed;
+    }
+
+    static bool IsPlayerUsingMeleeWeaponForGrab(CPlayerPed* player)
+    {
+        if (!player) {
+            return false;
+        }
+
+        CWeapon* activeWeapon = player->GetWeapon();
+        if (!activeWeapon) {
+            return false;
+        }
+
+        CWeaponInfo* weaponInfo = CWeaponInfo::GetWeaponInfo(activeWeapon->m_eWeaponType, player->GetWeaponSkill());
+        return weaponInfo && weaponInfo->m_nWeaponFire == WEAPON_FIRE_MELEE;
+    }
+
+    static bool IsPlayerAimingForGrab(CPlayerPed* player)
+    {
+        if (!player) {
+            return false;
+        }
+
+        if (!IsPlayerUsingMeleeWeaponForGrab(player)) {
+            return false;
+        }
+
+        CPad* pad = CPad::GetPad(0);
+        if (!pad) {
+            return false;
+        }
+
+        return pad->GetTarget()
+            || player->bIsAimingGun
+            || player->m_pTargetedObject
+            || (player->m_pPlayerData && player->m_pPlayerData->m_bFreeAiming);
+    }
+
+    static bool CanPlayerGrab(CPlayerPed* player)
+    {
+        if (!player) {
+            return false;
+        }
+
+        if (player->m_fHealth <= 0.0f) {
+            return false;
+        }
+
+        if (player->m_pVehicle) {
+            return false;
+        }
+
+        if (!player->m_pIntelligence) {
+            return false;
+        }
+
+        if (!IsPlayerAimingForGrab(player)) {
+            return false;
+        }
+
+        auto pedState = static_cast<unsigned int>(player->m_ePedState);
+        if (pedState >= PEDSTATE_DEAD && pedState <= PEDSTATE_ARRESTED) {
+            return false;
+        }
+
+        switch (player->m_ePedState) {
+        case PEDSTATE_JUMP:
+        case PEDSTATE_FALL:
+        case PEDSTATE_GETUP:
+        case PEDSTATE_STAGGER:
+        case PEDSTATE_EVADE_DIVE:
+        case PEDSTATE_ENTER_CAR:
+        case PEDSTATE_EXIT_CAR:
+        case PEDSTATE_OPEN_DOOR:
+        case PEDSTATE_CARJACK:
+        case PEDSTATE_DRAGGED_FROM_CAR:
+        case PEDSTATE_ARREST_PLAYER:
+        case PEDSTATE_SNIPER_MODE:
+        case PEDSTATE_ROCKETLAUNCHER_MODE:
+        case PEDSTATE_HANDS_UP:
+            return false;
+        default:
+            break;
+        }
+
+        if (player->m_nMoveState == PEDMOVE_SPRINT) {
+            return false;
+        }
+
+        if (player->bFiringWeapon || player->bIsDucking || player->bIsInTheAir || player->bIsLanding || player->bIsDrowning || player->bHasAScriptBrain) {
+            return false;
+        }
+
+        auto& intel = *player->m_pIntelligence;
+
+        if (intel.GetTaskClimb() || intel.GetTaskSwim() || intel.GetTaskInAir()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    static void StartGrab(CPlayerPed* player)
+    {
+        if (!player || !player->m_pIntelligence) {
+            return;
+        }
+
+        if (!CanTakeGrabberResponseSlot(player)) {
+            return;
+        }
+
+        ForceAbortSecondaryGrabConflicts(player);
+
+        auto* grabTask = new CTaskComplexGrab();
+        CTaskManager* taskMgr = &player->m_pIntelligence->m_TaskMgr;
+        taskMgr->SetTask(reinterpret_cast<CTask*>(grabTask), TASK_PRIMARY_PHYSICAL_RESPONSE, false);
+    }
+
+    static CTaskComplexGrab* GetPlayerGrabTask(CPlayerPed* player)
+    {
+        if (!player || !player->m_pIntelligence) {
+            return nullptr;
+        }
+
+        CTaskManager* taskMgr = &player->m_pIntelligence->m_TaskMgr;
+        CTask* task = taskMgr->m_aPrimaryTasks[TASK_PRIMARY_PHYSICAL_RESPONSE];
+        
+        if (task && task->GetId() == CTaskComplexGrab::Type) {
+            return reinterpret_cast<CTaskComplexGrab*>(task);
+        }
+        return nullptr;
+    }
+
+    static void OnGameProcess()
+    {
+        PruneEscapedVictims();
+
+        if (s_debugCountdown > 0) {
+            s_debugCountdown--;
+        }
+        else if (s_debugCountdown == 0) {
+            s_debugCountdown = -1;
+            if (s_debugPed && s_debugPed->m_pIntelligence) {
+                CTaskManager* taskMgr = &s_debugPed->m_pIntelligence->m_TaskMgr;
+
+                // Debug: print task types
+                char buf[512];
+                for (int i = 0; i < 5; i++) {
+                    CTask* task = taskMgr->m_aPrimaryTasks[i];
+                    if (task) {
+                        sprintf_s(buf, "Slot[%d]: ptr=%p type=%d\n", i, task, task->GetId());
+                        OutputDebugStringA(buf);
+                    }
+                }
+
+                if (s_debugPed->m_pRwClump) {
+                    OutputDebugStringA("=== Current Animations ===\n");
+                    CAnimBlendAssociation* assoc = RpAnimBlendClumpGetFirstAssociation(s_debugPed->m_pRwClump);
+                    int count = 0;
+
+                    while (assoc) {
+                        char buf[256];
+                        sprintf_s(buf, "[%d] Blend: %.2f Delta: %.2f Flags: 0x%X\n",
+                            count, assoc->m_fBlendAmount, assoc->m_fBlendDelta, assoc->m_nFlags);
+                        OutputDebugStringA(buf);
+                        assoc = RpAnimBlendGetNextAssociation(assoc);
+                        count++;
+                    }
+
+                    if (count == 0) {
+                        OutputDebugStringA("NO ANIMATIONS!\n");
+                    }
+                }
+            }
+            ClearDelayedDebugPed();
+        }
+
+        if (!IsGrabKeyJustPressed()) {
+            return;
+        }
+
+        CPlayerPed* player = GetPlayer();
+        if (!player) {
+            return;
+        }
+
+        // If we already have a grab in progress, release it
+        if (auto* existingGrab = GetPlayerGrabTask(player)) {
+            auto phase = existingGrab->GetPhase();
+            if (phase == CGrabContext::eGrabPhase::HOLDING || 
+                phase == CGrabContext::eGrabPhase::ACTION ||
+                phase == CGrabContext::eGrabPhase::REACHING) {
+                existingGrab->ReleaseVictim();
+                BlockGrabStartBriefly();
+                return;
+            }
+
+            // Let the TaskManager finish release cleanup before replacing this
+            // physical-response task with a new grab task.
+            return;
+        }
+
+        if (IsGrabStartCoolingDown()) {
+            return;
+        }
+
+        if (!CanPlayerGrab(player)) {
+            return;
+        }
+
+        if (!CTaskComplexGrab::FindValidVictimForGrab(player)) {
+            return;
+        }
+
+        StartGrab(player);
+    }
+
+    void InstallHooks() {
+        Events::gameProcessEvent += OnGameProcess;
+        Events::reInitGameEvent += ClearEscapeState;
+        Events::shutdownRwEvent.before += ClearEscapeState;
+    }
+}

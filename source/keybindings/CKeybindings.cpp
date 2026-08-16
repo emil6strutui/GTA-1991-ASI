@@ -71,7 +71,7 @@ namespace CKeybindings
 
         // ON FOOT - ACTIONS
         SetKey(pThis, PED_FIREWEAPON, rsPADINS + '1', 0);
-        SetKey(pThis, PED_FIREWEAPON, rsLCTRL, 1);
+        SetKey(pThis, PED_FIREWEAPON_ALT, rsLCTRL, 1);
         SetKey(pThis, PED_LOOKBEHIND, rsPADEND, 0);
         SetKey(pThis, PED_CYCLE_WEAPON_RIGHT, 'E', 0);
         SetKey(pThis, PED_CYCLE_WEAPON_LEFT, 'Q', 0);
@@ -93,7 +93,7 @@ namespace CKeybindings
         SetKey(pThis, PED_1RST_PERSON_LOOK_DOWN, rsPADDOWN, 0);
         SetKey(pThis, PED_CYCLE_TARGET_LEFT, '[', 0);
         SetKey(pThis, PED_CYCLE_TARGET_RIGHT, ']', 0);
-        SetKey(pThis, PED_CENTER_CAMERA_BEHIND_PLAYER, '#', 0);
+        SetKey(pThis, PED_CENTER_CAMERA_BEHIND_PLAYER, '3', 0);
 
         // VEHICLE - STEERING
         SetKey(pThis, VEHICLE_STEERLEFT, 'A', 0);

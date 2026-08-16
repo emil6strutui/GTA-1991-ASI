@@ -1,0 +1,101 @@
+#include "CTaskSimpleGrabHold.h"
+#include "GrabAnimations.h"
+
+#include <plugin.h>
+#include <CAnimManager.h>
+
+using namespace plugin;
+
+CTaskSimpleGrabHold::CTaskSimpleGrabHold(GrabContextPtr context)
+    : m_pContext(std::move(context))
+{
+}
+
+CTaskSimpleGrabHold::CTaskSimpleGrabHold(const CTaskSimpleGrabHold& other)
+    : m_pContext(nullptr)
+    , m_bFinished(true)
+{
+}
+
+CTaskSimpleGrabHold::~CTaskSimpleGrabHold()
+{
+    Cleanup();
+}
+
+bool CTaskSimpleGrabHold::MakeAbortable(CPed* ped, eAbortPriority priority, CEvent* event)
+{
+    if (priority != ABORT_PRIORITY_IMMEDIATE && m_pContext) {
+        const auto phase = m_pContext->GetPhase();
+        if (phase != CGrabContext::eGrabPhase::ACTION
+            && phase != CGrabContext::eGrabPhase::RELEASING
+            && phase != CGrabContext::eGrabPhase::FINISHED) {
+            return false;
+        }
+    }
+
+    GrabAnimations::AbortAnimation(ped, m_pAnim, priority);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+    m_bFinished = true;
+    return true;
+}
+
+bool CTaskSimpleGrabHold::ProcessPed(CPed* ped)
+{
+    if (m_bFinished) {
+        return true;
+    }
+
+    // Validate context
+    if (!m_pContext || !m_pContext->IsValid()) {
+        Cleanup();
+        m_bFinished = true;
+        return true;
+    }
+
+    // Phase transitions (release, action) are handled by the complex task's
+    // ControlSubTask before ProcessPed runs. This task just plays the idle anim.
+
+    // Load animations if needed
+    if (!m_bAnimsReferenced && !GrabAnimations::LoadAnimations(m_bAnimsReferenced)) {
+        return false;
+    }
+
+    // Start idle animation if not already playing
+    if (!m_pAnim) {
+        StartIdleAnimation(ped);
+    }
+
+    // Lock rotation
+    ped->m_fHeadingGoal = ped->m_fHeadingCurrent;
+
+    return false;
+}
+
+void CTaskSimpleGrabHold::StartIdleAnimation(CPed* ped)
+{
+    if (!ped || !ped->m_pRwClump) {
+        return;
+    }
+
+    CAnimBlendHierarchy* hier = GrabAnimations::GetAnimation(GrabAnimations::ANIM_GRAB_IDLE);
+    if (!hier) {
+        return;
+    }
+
+    m_pAnim = CAnimManager::BlendAnimation(
+        ped->m_pRwClump, 
+        hier, 
+        ANIMATION_LOOPED,
+        8.0f
+    );
+
+    if (m_pAnim) {
+        m_pAnim->ReferenceAnimBlock();
+    }
+}
+
+void CTaskSimpleGrabHold::Cleanup()
+{
+    GrabAnimations::BlendOutAnimation(m_pAnim);
+    GrabAnimations::UnloadAnimations(m_bAnimsReferenced);
+}

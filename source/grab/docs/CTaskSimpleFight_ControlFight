@@ -1,0 +1,57 @@
+.text:0061C5E0                             ; bool __thiscall CTaskSimpleFight::ControlFight(CTaskSimpleFight *this, CEntity *pEntity, eMeleeCommandS8 command)
+.text:0061C5E0                             _ZN16CTaskSimpleFight12ControlFightEP7CEntitya proc near
+.text:0061C5E0                                                                     ; CODE XREF: CTaskSimpleFightingControl::ProcessPed(CPed *)+2BF↓p
+.text:0061C5E0                                                                     ; CTaskSimplePlayerOnFoot::ProcessPlayerWeapon(CPlayerPed *)+5F7↓p
+.text:0061C5E0                                                                     ; CTaskSimplePlayerOnFoot::ProcessPlayerWeapon(CPlayerPed *)+7C5↓p
+.text:0061C5E0                                                                     ; CTaskSimplePlayerOnFoot::ProcessPlayerWeapon(CPlayerPed *)+7EB↓p ...
+.text:0061C5E0
+.text:0061C5E0                             pEntity         = dword ptr  4
+.text:0061C5E0                             command         = byte ptr  8
+.text:0061C5E0
+.text:0061C5E0 000 53                                      push    ebx
+.text:0061C5E1 004 8B 5C 24 08                             mov     ebx, [esp+4+pEntity]
+.text:0061C5E5 004 56                                      push    esi
+.text:0061C5E6 008 57                                      push    edi
+.text:0061C5E7 00C 8B F9                                   mov     edi, ecx
+.text:0061C5E9 00C 8B 4F 18                                mov     ecx, [edi+18h]  ; this
+.text:0061C5EC 00C 3B D9                                   cmp     ebx, ecx        ; Compare Two Operands
+.text:0061C5EE 00C 8D 77 18                                lea     esi, [edi+18h]  ; Load Effective Address
+.text:0061C5F1 00C C6 47 09 01                             mov     byte ptr [edi+9], 1
+.text:0061C5F5 00C 74 18                                   jz      short loc_61C60F ; Jump if Zero (ZF=1)
+.text:0061C5F5
+.text:0061C5F7 00C 85 C9                                   test    ecx, ecx        ; Logical Compare
+.text:0061C5F9 00C 74 06                                   jz      short loc_61C601 ; Jump if Zero (ZF=1)
+.text:0061C5F9
+.text:0061C5FB 00C 56                                      push    esi             ; object
+.text:0061C5FC 010 E8 FF 53 F5 FF                          call    _ZN7CEntity19CleanUpOldReferenceEPPS_ ; Call Procedure
+.text:0061C5FC
+.text:0061C601
+.text:0061C601                             loc_61C601:                             ; CODE XREF: CTaskSimpleFight::ControlFight(CEntity *,signed char)+19↑j
+.text:0061C601 00C 85 DB                                   test    ebx, ebx        ; Logical Compare
+.text:0061C603 00C 89 1E                                   mov     [esi], ebx
+.text:0061C605 00C 74 08                                   jz      short loc_61C60F ; Jump if Zero (ZF=1)
+.text:0061C605
+.text:0061C607 00C 56                                      push    esi             ; a2
+.text:0061C608 010 8B CB                                   mov     ecx, ebx        ; this
+.text:0061C60A 010 E8 61 55 F5 FF                          call    _ZN7CEntity17RegisterReferenceEPPS_ ; Call Procedure
+.text:0061C60A
+.text:0061C60F
+.text:0061C60F                             loc_61C60F:                             ; CODE XREF: CTaskSimpleFight::ControlFight(CEntity *,signed char)+15↑j
+.text:0061C60F                                                                     ; CTaskSimpleFight::ControlFight(CEntity *,signed char)+25↑j
+.text:0061C60F 00C 8A 44 24 14                             mov     al, [esp+0Ch+command]
+.text:0061C613 00C 3A 47 26                                cmp     al, [edi+26h]   ; Compare Two Operands
+.text:0061C616 00C 7E 03                                   jle     short loc_61C61B ; Jump if Less or Equal (ZF=1 | SF!=OF)
+.text:0061C616
+.text:0061C618 00C 88 47 26                                mov     [edi+26h], al
+.text:0061C618
+.text:0061C61B
+.text:0061C61B                             loc_61C61B:                             ; CODE XREF: CTaskSimpleFight::ControlFight(CEntity *,signed char)+36↑j
+.text:0061C61B 00C 5F                                      pop     edi
+.text:0061C61C 008 5E                                      pop     esi
+.text:0061C61D 004 B0 01                                   mov     al, 1
+.text:0061C61F 004 5B                                      pop     ebx
+.text:0061C620 000 C2 08 00                                retn    8               ; Return Near from Procedure
+.text:0061C620
+.text:0061C620                             _ZN16CTaskSimpleFight12ControlFightEP7CEntitya endp
+.text:0061C620
+.text:0061C620                             ; ---------------------------------------------------------------------------

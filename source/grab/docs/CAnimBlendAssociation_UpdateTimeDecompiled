@@ -1,0 +1,100 @@
+.text:004D13D0                             ; =============== S U B R O U T I N E =======================================
+.text:004D13D0
+.text:004D13D0
+.text:004D13D0                             ; char __thiscall CAnimBlendAssociation::UpdateTime(CAnimBlendAssociation *this, int a2, float)
+.text:004D13D0                             _ZN21CAnimBlendAssociation10UpdateTimeEff proc near
+.text:004D13D0                                                                     ; CODE XREF: RpAnimBlendClumpUpdateAnimations(RpClump *,float,bool)+261↓p
+.text:004D13D0
+.text:004D13D0                             var_4           = dword ptr -4
+.text:004D13D0                             a2              = dword ptr  4
+.text:004D13D0
+.text:004D13D0 000 51                                      push    ecx
+.text:004D13D1 004 56                                      push    esi
+.text:004D13D2 008 8B F1                                   mov     esi, ecx
+.text:004D13D4 008 F6 46 2E 01                             test    byte ptr [esi+2Eh], 1 ; Logical Compare
+.text:004D13D8 008 0F 84 9C 00 00 00                       jz      loc_4D147A      ; Jump if Zero (ZF=1)
+.text:004D13D8
+.text:004D13DE 008 8B 4E 14                                mov     ecx, [esi+14h]
+.text:004D13E1 008 D9 46 20                                fld     dword ptr [esi+20h] ; Load Real
+.text:004D13E4 008 D8 59 10                                fcomp   dword ptr [ecx+10h] ; Compare Real and Pop
+.text:004D13E7 008 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:004D13E9 008 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:004D13EC 008 75 0B                                   jnz     short loc_4D13F9 ; Jump if Not Zero (ZF=0)
+.text:004D13EC
+.text:004D13EE 008 80 66 2E FE                             and     byte ptr [esi+2Eh], 0FEh ; Logical AND
+.text:004D13F2 008 B0 01                                   mov     al, 1
+.text:004D13F4 008 5E                                      pop     esi
+.text:004D13F5 004 59                                      pop     ecx
+.text:004D13F6 000 C2 08 00                                retn    8               ; Return Near from Procedure
+.text:004D13F6
+.text:004D13F9                             ; ---------------------------------------------------------------------------
+.text:004D13F9
+.text:004D13F9                             loc_4D13F9:                             ; CODE XREF: CAnimBlendAssociation::UpdateTime(float,float)+1C↑j
+.text:004D13F9 008 D9 46 28                                fld     dword ptr [esi+28h] ; Load Real
+.text:004D13FC 008 D8 46 20                                fadd    dword ptr [esi+20h] ; Add Real
+.text:004D13FF 008 D9 5C 24 04                             fstp    [esp+8+var_4]   ; Store Real and Pop
+.text:004D1403 008 8B 44 24 04                             mov     eax, [esp+8+var_4]
+.text:004D1407 008 D9 44 24 04                             fld     [esp+8+var_4]   ; Load Real
+.text:004D140B 008 89 46 20                                mov     [esi+20h], eax
+.text:004D140E 008 D8 59 10                                fcomp   dword ptr [ecx+10h] ; Compare Real and Pop
+.text:004D1411 008 DF E0                                   fnstsw  ax              ; Store Status Word (no wait)
+.text:004D1413 008 F6 C4 01                                test    ah, 1           ; Logical Compare
+.text:004D1416 008 75 62                                   jnz     short loc_4D147A ; Jump if Not Zero (ZF=0)
+.text:004D1416
+.text:004D1418 008 66 8B 46 2E                             mov     ax, [esi+2Eh]
+.text:004D141C 008 8A D0                                   mov     dl, al
+.text:004D141E 008 D0 EA                                   shr     dl, 1           ; Shift Logical Right
+.text:004D1420 008 F6 C2 01                                test    dl, 1           ; Logical Compare
+.text:004D1423 008 74 11                                   jz      short loc_4D1436 ; Jump if Zero (ZF=1)
+.text:004D1423
+.text:004D1425 008 D9 44 24 04                             fld     [esp+8+var_4]   ; Load Real
+.text:004D1429 008 B0 01                                   mov     al, 1
+.text:004D142B 008 D8 61 10                                fsub    dword ptr [ecx+10h] ; Subtract Real
+.text:004D142E 008 D9 5E 20                                fstp    dword ptr [esi+20h] ; Store Real and Pop
+.text:004D1431 008 5E                                      pop     esi
+.text:004D1432 004 59                                      pop     ecx
+.text:004D1433 000 C2 08 00                                retn    8               ; Return Near from Procedure
+.text:004D1433
+.text:004D1436                             ; ---------------------------------------------------------------------------
+.text:004D1436
+.text:004D1436                             loc_4D1436:                             ; CODE XREF: CAnimBlendAssociation::UpdateTime(float,float)+53↑j
+.text:004D1436 008 8B 49 10                                mov     ecx, [ecx+10h]
+.text:004D1439 008 8A D0                                   mov     dl, al
+.text:004D143B 008 C0 EA 03                                shr     dl, 3           ; Shift Logical Right
+.text:004D143E 008 F6 C2 01                                test    dl, 1           ; Logical Compare
+.text:004D1441 008 89 4E 20                                mov     [esi+20h], ecx
+.text:004D1444 008 74 0E                                   jz      short loc_4D1454 ; Jump if Zero (ZF=1)
+.text:004D1444
+.text:004D1446 008 83 C8 04                                or      eax, 4          ; Logical Inclusive OR
+.text:004D1449 008 66 89 46 2E                             mov     [esi+2Eh], ax
+.text:004D144D 008 C7 46 1C 00 00 80 C0                    mov     dword ptr [esi+1Ch], 0C0800000h
+.text:004D144D
+.text:004D1454
+.text:004D1454                             loc_4D1454:                             ; CODE XREF: CAnimBlendAssociation::UpdateTime(float,float)+74↑j
+.text:004D1454 008 83 7E 30 01                             cmp     dword ptr [esi+30h], 1 ; Compare Two Operands
+.text:004D1458 008 75 20                                   jnz     short loc_4D147A ; Jump if Not Zero (ZF=0)
+.text:004D1458
+.text:004D145A 008 8B 46 38                                mov     eax, [esi+38h]
+.text:004D145D 008 50                                      push    eax
+.text:004D145E 00C 56                                      push    esi
+.text:004D145F 010 C7 46 30 00 00 00 00                    mov     dword ptr [esi+30h], 0
+.text:004D1466 010 FF 56 34                                call    dword ptr [esi+34h] ; Indirect Call Near Procedure
+.text:004D1466
+.text:004D1469 010 83 C4 08                                add     esp, 8          ; Add
+.text:004D146C 008 6A 00                                   push    0               ; data
+.text:004D146E 00C 68 90 13 4D 00                          push    offset _ZN20CDefaultAnimCallback13DefaultAnimCBEP21CAnimBlendAssociationPv ; func
+.text:004D1473 010 8B CE                                   mov     ecx, esi        ; this
+.text:004D1475 010 E8 66 D7 FF FF                          call    _ZN21CAnimBlendAssociation17SetFinishCallbackEPFvPS_PvES1_ ; Call Procedure
+.text:004D1475
+.text:004D147A
+.text:004D147A                             loc_4D147A:                             ; CODE XREF: CAnimBlendAssociation::UpdateTime(float,float)+8↑j
+.text:004D147A                                                                     ; CAnimBlendAssociation::UpdateTime(float,float)+46↑j
+.text:004D147A                                                                     ; CAnimBlendAssociation::UpdateTime(float,float)+88↑j
+.text:004D147A 008 B0 01                                   mov     al, 1
+.text:004D147C 008 5E                                      pop     esi
+.text:004D147D 004 59                                      pop     ecx
+.text:004D147E 000 C2 08 00                                retn    8               ; Return Near from Procedure
+.text:004D147E
+.text:004D147E                             _ZN21CAnimBlendAssociation10UpdateTimeEff endp
+.text:004D147E
+.text:004D147E                             ; ---------------------------------------------------------------------------

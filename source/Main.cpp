@@ -4,6 +4,7 @@
 #include "CStoriesSprinting.h"
 #include "ButtonIcons.h"
 #include "CKeybindings.h"
+#include "grab/CGrabSystem.h"
 
 using namespace plugin;
 
@@ -25,5 +26,6 @@ public:
         CStoriesSprinting::InstallHooks();
         ButtonIcons::InstallHooks();
         CKeybindings::InstallPatches();
+        CGrabSystem::InstallHooks();
     }
 } mainPlugin;

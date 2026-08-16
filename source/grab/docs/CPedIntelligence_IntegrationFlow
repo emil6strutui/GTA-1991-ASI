@@ -1,0 +1,226 @@
+GTA San Andreas: Full CPedIntelligence Integration Flow
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        GAME LOOP (Every Frame)                                  │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                    CPedIntelligence::Process()                          │   │
+│  │                         (PedIntelligence.cpp:955)                       │   │
+│  └───────────────────────────────┬─────────────────────────────────────────┘   │
+│                                  │                                              │
+└──────────────────────────────────┼──────────────────────────────────────────────┘
+                                   ▼
+  ╔════════════════════════════════════════════════════════════════════════════╗
+  ║                    PHASE 1: WORLD SCANNING                                 ║
+  ╠════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                            ║
+  ║  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐  ║
+  ║  │CVehicleScanner   │  │CPedScanner       │  │CEventScanner             │  ║
+  ║  │.ScanForVehicles  │  │.ScanForPedsIn    │  │.ScanForEvents()          │  ║
+  ║  │InRange()         │  │Range()           │  │  - Attractors            │  ║
+  ║  │                  │  │                  │  │  - Threats               │  ║
+  ║  │Populates:        │  │Populates:        │  │  - Collisions            │  ║
+  ║  │m_vehicleScanner  │  │m_pedScanner      │  │  - Fire/Danger           │  ║
+  ║  │.m_apEntities[]   │  │.m_apEntities[]   │  │                          │  ║
+  ║  └────────┬─────────┘  └────────┬─────────┘  └────────────┬─────────────┘  ║
+  ║           │                     │                         │                 ║
+  ║           └──────────┬──────────┴─────────────────────────┘                 ║
+  ║                      ▼                                                      ║
+  ║           ┌──────────────────────────────────────┐                          ║
+  ║           │        CEventGroup (m_eventGroup)    │                          ║
+  ║           │    Queue of up to 16 CEvent objects  │                          ║
+  ║           │    Sorted by priority                │                          ║
+  ║           └──────────────────┬───────────────────┘                          ║
+  ╚══════════════════════════════╪═════════════════════════════════════════════╝
+                                 ▼
+  ╔════════════════════════════════════════════════════════════════════════════╗
+  ║                    PHASE 2: EVENT HANDLING                                 ║
+  ║                    CEventHandler::HandleEvents()                           ║
+  ║                    (EventHandler.cpp:319)                                  ║
+  ╠════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                            ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐     ║
+  ║  │  1. m_History.TickStoredEvent() - Age current event               │     ║
+  ║  │  2. pedEG->TickEvents() - Tick all pending events                 │     ║
+  ║  │  3. Get highest priority event from CEventGroup                   │     ║
+  ║  └───────────────────────────────┬───────────────────────────────────┘     ║
+  ║                                  ▼                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐     ║
+  ║  │  4. m_History.TakesPriorityOverCurrentEvent(newEvent)?            │     ║
+  ║  │     ┌─────────────────────────────────────────────────────────┐   │     ║
+  ║  │     │ YES: Abort current task (MakeAbortable)                 │   │     ║
+  ║  │     │      ComputeEventResponseTask(event, abortedTask)       │   │     ║
+  ║  │     │      SetEventResponseTask(event)                        │   │     ║
+  ║  │     └─────────────────────────────────────────────────────────┘   │     ║
+  ║  └───────────────────────────────┬───────────────────────────────────┘     ║
+  ║                                  ▼                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐     ║
+  ║  │  ComputeEventResponseTask() - ~50 Compute*Response() methods      │     ║
+  ║  │  ┌─────────────────────────────────────────────────────────────┐  │     ║
+  ║  │  │ EVENT_DAMAGE        → ComputeDamageResponse()               │  │     ║
+  ║  │  │ EVENT_GUN_AIMED_AT  → ComputeGunAimedAtResponse()           │  │     ║
+  ║  │  │ EVENT_VEHICLE_COLL. → ComputeVehicleCollisionResponse()     │  │     ║
+  ║  │  │ EVENT_PED_THREAT    → ComputePedThreatResponse()            │  │     ║
+  ║  │  │ EVENT_SCRIPT_CMD    → ComputeScriptCommandResponse()        │  │     ║
+  ║  │  │ ...                                                         │  │     ║
+  ║  │  └─────────────────────────────────────────────────────────────┘  │     ║
+  ║  └───────────────────────────────┬───────────────────────────────────┘     ║
+  ║                                  ▼                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐     ║
+  ║  │  SetEventResponseTask() - Assigns tasks to slots:                 │     ║
+  ║  │  ┌─────────────────────────────────────────────────────────────┐  │     ║
+  ║  │  │ m_PhysicalResponseTask → TASK_PRIMARY_PHYSICAL_RESPONSE     │  │     ║
+  ║  │  │ m_EventResponseTask    → TASK_PRIMARY_EVENT_RESPONSE_*      │  │     ║
+  ║  │  │ m_AttackTask           → TASK_SECONDARY_ATTACK              │  │     ║
+  ║  │  │ m_SayTask              → TASK_SECONDARY_SAY                 │  │     ║
+  ║  │  │ m_PartialAnimTask      → TASK_SECONDARY_PARTIAL_ANIM        │  │     ║
+  ║  │  └─────────────────────────────────────────────────────────────┘  │     ║
+  ║  └───────────────────────────────────────────────────────────────────┘     ║
+  ║                                                                            ║
+  ╚════════════════════════════════════════════════════════════════════════════╝
+                                 │
+                                 ▼
+  ╔════════════════════════════════════════════════════════════════════════════╗
+  ║                    PHASE 3: TASK EXECUTION                                 ║
+  ║                    CTaskManager::ManageTasks()                             ║
+  ║                    (TaskManager.cpp:253)                                   ║
+  ╠════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                            ║
+  ║   PRIMARY TASK SLOTS (Lower index = Higher priority)                       ║
+  ║  ┌────────────────────────────────────────────────────────────────────┐    ║
+  ║  │ [0] TASK_PRIMARY_PHYSICAL_RESPONSE  ← Hit reactions, ragdoll      │    ║
+  ║  │ [1] TASK_PRIMARY_EVENT_RESPONSE_TEMP ← Temporary (flinch)         │    ║
+  ║  │ [2] TASK_PRIMARY_EVENT_RESPONSE_NONTEMP ← Persistent (fight back) │    ║
+  ║  │ [3] TASK_PRIMARY_PRIMARY            ← Main objective (scripted)   │    ║
+  ║  │ [4] TASK_PRIMARY_DEFAULT            ← Idle, wander                │    ║
+  ║  └────────────────────────────────────────────────────────────────────┘    ║
+  ║                                                                            ║
+  ║   SECONDARY TASK SLOTS (Run alongside primary)                             ║
+  ║  ┌────────────────────────────────────────────────────────────────────┐    ║
+  ║  │ [0] TASK_SECONDARY_ATTACK          ← CTaskSimpleFight/UseGun      │    ║
+  ║  │ [1] TASK_SECONDARY_DUCK            ← Crouching                    │    ║
+  ║  │ [2] TASK_SECONDARY_SAY             ← Speech                       │    ║
+  ║  │ [3] TASK_SECONDARY_FACIAL_COMPLEX  ← Facial expressions           │    ║
+  ║  │ [4] TASK_SECONDARY_PARTIAL_ANIM    ← Partial animations           │    ║
+  ║  │ [5] TASK_SECONDARY_IK              ← Inverse kinematics           │    ║
+  ║  └────────────────────────────────────────────────────────────────────┘    ║
+  ║                                                                            ║
+  ║   TASK TREE EXECUTION (ProcessTaskTree):                                   ║
+  ║  ┌────────────────────────────────────────────────────────────────────┐    ║
+  ║  │                                                                    │    ║
+  ║  │   ActiveTask (CTaskComplex)                                        │    ║
+  ║  │        │                                                           │    ║
+  ║  │        ├── ParentsControlChildren() → ControlSubTask()             │    ║
+  ║  │        │       Returns: same subtask (continue)                    │    ║
+  ║  │        │                new subtask (switch)                       │    ║
+  ║  │        │                nullptr (finished)                         │    ║
+  ║  │        ▼                                                           │    ║
+  ║  │   SubTask (CTaskComplex or CTaskSimple)                            │    ║
+  ║  │        │                                                           │    ║
+  ║  │        ├── If Complex: recurse with ControlSubTask()               │    ║
+  ║  │        │                                                           │    ║
+  ║  │        ▼                                                           │    ║
+  ║  │   LeafTask (CTaskSimple)                                           │    ║
+  ║  │        │                                                           │    ║
+  ║  │        └── ProcessPed(CPed*) → returns true when finished          │    ║
+  ║  │                    │                                               │    ║
+  ║  │                    ▼                                               │    ║
+  ║  │            If finished: SetNextSubTask(parent)                     │    ║
+  ║  │                    │                                               │    ║
+  ║  │                    └── parent->CreateNextSubTask()                 │    ║
+  ║  │                              │                                     │    ║
+  ║  │                              └── Returns new subtask or nullptr    │    ║
+  ║  │                                  (nullptr = parent also finished)  │    ║
+  ║  │                                                                    │    ║
+  ║  └────────────────────────────────────────────────────────────────────┘    ║
+  ║                                                                            ║
+  ╚════════════════════════════════════════════════════════════════════════════╝
+  ╔════════════════════════════════════════════════════════════════════════════╗
+  ║                    CTaskComplex STATE MACHINE                              ║
+  ╠════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                            ║
+  ║  ┌──────────────────────────────────────────────────────────────────┐      ║
+  ║  │ CTaskComplex has THREE key virtual methods:                      │      ║
+  ║  │                                                                  │      ║
+  ║  │  1. CreateFirstSubTask(CPed*) → CTask*                           │      ║
+  ║  │     Called ONCE when task is first set                           │      ║
+  ║  │     Returns first subtask to execute                             │      ║
+  ║  │                                                                  │      ║
+  ║  │  2. ControlSubTask(CPed*) → CTask*                               │      ║
+  ║  │     Called EVERY FRAME                                           │      ║
+  ║  │     Returns:                                                     │      ║
+  ║  │       - Same subtask → Continue current subtask                  │      ║
+  ║  │       - Different task → Abort old, start new subtask            │      ║
+  ║  │       - nullptr → This complex task is finished                  │      ║
+  ║  │                                                                  │      ║
+  ║  │  3. CreateNextSubTask(CPed*) → CTask*                            │      ║
+  ║  │     Called when current subtask finishes (ProcessPed returns     │      ║
+  ║  │     true)                                                        │      ║
+  ║  │     Returns:                                                     │      ║
+  ║  │       - New subtask → Execute it next                            │      ║
+  ║  │       - nullptr → This complex task is finished                  │      ║
+  ║  │                                                                  │      ║
+  ║  └──────────────────────────────────────────────────────────────────┘      ║
+  ║                                                                            ║
+  ║  EXAMPLE: CTaskComplexKillPedOnFoot                                        ║
+  ║  ┌──────────────────────────────────────────────────────────────────┐      ║
+  ║  │                                                                  │      ║
+  ║  │  CreateFirstSubTask() → CTaskComplexSeekEntity (approach target) │      ║
+  ║  │           │                                                      │      ║
+  ║  │           ▼ (finished approaching)                               │      ║
+  ║  │  CreateNextSubTask() → CTaskComplexKillPedOnFootMelee            │      ║
+  ║  │           │            OR CTaskSimpleUseGun                      │      ║
+  ║  │           ▼                                                      │      ║
+  ║  │  ControlSubTask() checks:                                        │      ║
+  ║  │    - Target dead? → return nullptr (finished)                    │      ║
+  ║  │    - Target fled? → return SeekEntity (chase again)              │      ║
+  ║  │    - In range?    → return current attack subtask                │      ║
+  ║  │                                                                  │      ║
+  ║  └──────────────────────────────────────────────────────────────────┘      ║
+  ║                                                                            ║
+  ╚════════════════════════════════════════════════════════════════════════════╝
+  ╔════════════════════════════════════════════════════════════════════════════╗
+  ║                    COMPLETE DATA FLOW EXAMPLE                              ║
+  ║                    (Ped Gets Punched by Player)                            ║
+  ╠════════════════════════════════════════════════════════════════════════════╣
+  ║                                                                            ║
+  ║  1. TRIGGER: Player punches NPC                                            ║
+  ║     └── Game creates CEventDamage with source=player, weapon=fist          ║
+  ║                                                                            ║
+  ║  2. EVENT ADDED: CEventGroup::Add(CEventDamage)                            ║
+  ║     └── Event queued with priority based on damage severity                ║
+  ║                                                                            ║
+  ║  3. NEXT FRAME: CPedIntelligence::Process()                                ║
+  ║     └── m_eventHandler.HandleEvents()                                      ║
+  ║         └── Gets CEventDamage as highest priority                          ║
+  ║         └── TakesPriorityOverCurrentEvent() = true                         ║
+  ║         └── Aborts current wander task                                     ║
+  ║         └── ComputeEventResponseTask(CEventDamage)                         ║
+  ║             └── ComputeDamageResponse()                                    ║
+  ║                 ├── m_PhysicalResponseTask = CTaskSimpleBeHit (flinch)     ║
+  ║                 └── ComputePersonalityResponseToDamage()                   ║
+  ║                     └── m_EventResponseTask = CTaskComplexKillPedOnFoot    ║
+  ║         └── SetEventResponseTask()                                         ║
+  ║             ├── TASK_PRIMARY_PHYSICAL_RESPONSE = CTaskSimpleBeHit          ║
+  ║             └── TASK_PRIMARY_EVENT_RESPONSE_NONTEMP =                      ║
+  ║                                         CTaskComplexKillPedOnFoot          ║
+  ║                                                                            ║
+  ║  4. TASK EXECUTION: m_TaskMgr.ManageTasks()                                ║
+  ║     └── Active task = PHYSICAL_RESPONSE (highest priority with task)       ║
+  ║     └── CTaskSimpleBeHit::ProcessPed()                                     ║
+  ║         └── Plays flinch animation                                         ║
+  ║         └── Returns true when animation complete                           ║
+  ║     └── Task deleted, nullptr in slot                                      ║
+  ║                                                                            ║
+  ║  5. NEXT FRAME:                                                            ║
+  ║     └── Active task = EVENT_RESPONSE_NONTEMP (next priority)               ║
+  ║     └── CTaskComplexKillPedOnFoot::CreateFirstSubTask()                    ║
+  ║         └── Returns CTaskComplexSeekEntity(player)                         ║
+  ║     └── NPC starts approaching player to attack                            ║
+  ║                                                                            ║
+  ║  6. COMBAT LOOP:                                                           ║
+  ║     └── ControlSubTask() monitors distance                                 ║
+  ║     └── When in range: CreateNextSubTask() → CTaskSimpleFight              ║
+  ║     └── CTaskSimpleFight sets TASK_SECONDARY_ATTACK                        ║
+  ║     └── ProcessPed() executes punches/kicks                                ║
+  ║                                                                            ║
+  ╚════════════════════════════════════════════════════════════════════════════╝
