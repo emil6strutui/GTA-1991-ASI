@@ -72,7 +72,7 @@ bool CTaskSimpleGrabReach::ProcessPed(CPed* ped)
     }
 
     if (m_bAnimFinished) {
-        ped->m_fAimingRotation = ped->m_fCurrentRotation;
+        ped->m_fHeadingGoal = ped->m_fHeadingCurrent;
         m_bFinished = true;
         return true;
     }
@@ -89,7 +89,7 @@ bool CTaskSimpleGrabReach::ProcessPed(CPed* ped)
     }
 
     // Lock ped rotation during reach
-    ped->m_fAimingRotation = ped->m_fCurrentRotation;
+    ped->m_fHeadingGoal = ped->m_fHeadingCurrent;
 
     return false;
 }
@@ -111,7 +111,7 @@ void CTaskSimpleGrabReach::StartAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
-        ANIMATION_IS_BLEND_AUTO_REMOVE, 
+        ANIMATION_FREEZE_LAST_FRAME,
         GrabAnimations::START_BLEND_DELTA
     );
 

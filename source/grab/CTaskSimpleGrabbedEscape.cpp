@@ -120,7 +120,7 @@ void CTaskSimpleGrabbedEscape::StartAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump,
         hier,
-        ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE | ANIMATION_IS_FINISH_AUTO_REMOVE,
+        ANIMATION_PARTIAL | ANIMATION_FREEZE_LAST_FRAME | ANIMATION_UNLOCK_LAST_FRAME,
         4.0f
     );
 
@@ -221,7 +221,7 @@ void CTaskSimpleGrabbedEscape::PositionVictim(CPed* ped) const
     }
 
     CVector grabberPos = grabber->GetPosition();
-    float heading = grabber->m_fCurrentRotation;
+    float heading = grabber->m_fHeadingCurrent;
 
     float sinH = std::sin(heading);
     float cosH = std::cos(heading);
@@ -240,8 +240,8 @@ void CTaskSimpleGrabbedEscape::PositionVictim(CPed* ped) const
     while (victimHeading > pi) victimHeading -= twoPi;
     while (victimHeading < -pi) victimHeading += twoPi;
 
-    ped->m_fCurrentRotation = victimHeading;
-    ped->m_fAimingRotation = victimHeading;
+    ped->m_fHeadingCurrent = victimHeading;
+    ped->m_fHeadingGoal = victimHeading;
 }
 
 void CTaskSimpleGrabbedEscape::AnimFinishedCB(CAnimBlendAssociation*, void* data)

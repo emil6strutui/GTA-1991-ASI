@@ -120,7 +120,7 @@ void CTaskSimpleGrabbedHeld::StartIdleAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump,
         hier,
-        ANIMATION_IS_LOOPED | ANIMATION_IGNORE_ROOT_TRANSLATION,
+        ANIMATION_LOOPED | ANIMATION_FREEZE_TRANSLATION,
         8.0f
     );
 
@@ -152,7 +152,7 @@ void CTaskSimpleGrabbedHeld::PositionVictim(CPed* ped) const
     }
 
     CVector grabberPos = grabber->GetPosition();
-    float heading = grabber->m_fCurrentRotation;
+    float heading = grabber->m_fHeadingCurrent;
 
     float sinH = std::sin(heading);
     float cosH = std::cos(heading);
@@ -172,6 +172,6 @@ void CTaskSimpleGrabbedHeld::PositionVictim(CPed* ped) const
     while (victimHeading > pi) victimHeading -= twoPi;
     while (victimHeading < -pi) victimHeading += twoPi;
 
-    ped->m_fCurrentRotation = victimHeading;
-    ped->m_fAimingRotation = victimHeading;
+    ped->m_fHeadingCurrent = victimHeading;
+    ped->m_fHeadingGoal = victimHeading;
 }

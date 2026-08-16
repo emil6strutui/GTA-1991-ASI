@@ -368,7 +368,7 @@ CTask* CTaskComplexGrab::ControlSubTask(CPed* ped)
                 if (auto* releaseAnimation = CAnimManager::BlendAnimation(
                     ped->m_pRwClump,
                     hier,
-                    ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE,
+                    ANIMATION_PARTIAL | ANIMATION_FREEZE_LAST_FRAME,
                     8.0f
                 )) {
                     releaseAnimation->m_fSpeed = 1.2f;
@@ -450,7 +450,7 @@ CPed* CTaskComplexGrab::FindValidVictimForGrab(CPed* grabber, float* outDistance
     }
 
     CVector grabberPos = grabber->GetPosition();
-    float grabberHeading = grabber->m_fCurrentRotation;
+    float grabberHeading = grabber->m_fHeadingCurrent;
 
     short numFound = 0;
     CEntity* entities[16];
@@ -603,5 +603,9 @@ void CTaskComplexGrab::Cleanup()
 
 bool CTaskComplexGrab::IsAttackPressed() const
 {
-    return CPad::GetPad(0)->MeleeAttackJustDown(false) != 0;
+    // plugin-sdk's wrapper omits the native bool argument required by 0x540390.
+    return plugin::CallMethodAndReturn<unsigned char, 0x540390, CPad*, bool>(
+        CPad::GetPad(0),
+        false
+    ) != 0;
 }

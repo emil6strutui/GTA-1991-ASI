@@ -176,7 +176,7 @@ namespace GrabAnimations
         }
         
         ClearAnimationCallbacks(anim);
-        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
+        anim->m_nFlags |= ANIMATION_FREEZE_LAST_FRAME;
         
         if (anim->m_fBlendAmount > 0.0f && anim->m_fBlendDelta >= 0.0f) {
             anim->m_fBlendDelta = -4.0f;
@@ -194,7 +194,7 @@ namespace GrabAnimations
         }
 
         ClearAnimationCallbacks(anim);
-        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
+        anim->m_nFlags |= ANIMATION_FREEZE_LAST_FRAME;
         anim->m_fBlendDelta = blendDelta;
         anim = nullptr;
     }
@@ -212,10 +212,10 @@ namespace GrabAnimations
         const float blendDelta = priority == ABORT_PRIORITY_IMMEDIATE ? -1000.0f : -4.0f;
 
         ClearAnimationCallbacks(anim);
-        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
+        anim->m_nFlags |= ANIMATION_FREEZE_LAST_FRAME;
 
         if (!holdLastFrame) {
-            if (anim->m_nFlags & ANIMATION_IS_PARTIAL) {
+            if (anim->m_nFlags & ANIMATION_PARTIAL) {
                 anim->m_fBlendDelta = blendDelta;
             } else if (ped && ped->m_pRwClump) {
                 CAnimManager::BlendAnimation(ped->m_pRwClump, ped->m_nAnimGroup, ANIM_DEFAULT_IDLE_STANCE, -blendDelta);
@@ -239,7 +239,7 @@ namespace GrabAnimations
         }
 
         ClearAnimationCallbacks(anim);
-        anim->m_nFlags |= ANIMATION_IS_BLEND_AUTO_REMOVE;
+        anim->m_nFlags |= ANIMATION_FREEZE_LAST_FRAME;
         anim = nullptr;
     }
 }

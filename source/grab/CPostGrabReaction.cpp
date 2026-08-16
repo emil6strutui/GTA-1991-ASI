@@ -108,7 +108,7 @@ namespace CPostGrabReaction
                 force.z = 0.0f;
             }
 
-            force.Normalise();
+            force.Normalize();
             force *= RELEASE_PUSH_FORCE;
             force.z = RELEASE_PUSH_UP_FORCE;
 
@@ -218,7 +218,7 @@ namespace CPostGrabReaction
             reinterpret_cast<CEntity*>(attacker),
             CTimer::m_snTimeInMilliseconds,
             WEAPONTYPE_UNARMED,
-            PED_PIECE_TORSO,
+            kPedPieceTorso,
             direction,
             false,
             victim->bInVehicle
@@ -291,7 +291,7 @@ namespace CPostGrabReaction
             );
         }
 
-        QueueDamageEvent(victim, attacker, 0.0f, PED_PIECE_TORSO, false);
+        QueueDamageEvent(victim, attacker, 0.0f, kPedPieceTorso, false);
     }
 
     void TriggerReleasePush(CPed* victim, CPed* attacker)
@@ -306,7 +306,7 @@ namespace CPostGrabReaction
             victim,
             attacker,
             RELEASE_PUSH_DAMAGE,
-            PED_PIECE_TORSO,
+            kPedPieceTorso,
             RELEASE_FALL_BACK_DIRECTION,
             true,
             false

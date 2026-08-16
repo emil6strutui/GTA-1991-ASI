@@ -66,7 +66,7 @@ bool CTaskSimpleGrabHold::ProcessPed(CPed* ped)
     }
 
     // Lock rotation
-    ped->m_fAimingRotation = ped->m_fCurrentRotation;
+    ped->m_fHeadingGoal = ped->m_fHeadingCurrent;
 
     return false;
 }
@@ -85,7 +85,7 @@ void CTaskSimpleGrabHold::StartIdleAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
-        ANIMATION_IS_LOOPED, 
+        ANIMATION_LOOPED,
         8.0f
     );
 

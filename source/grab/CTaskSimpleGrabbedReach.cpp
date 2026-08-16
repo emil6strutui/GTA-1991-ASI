@@ -126,7 +126,7 @@ void CTaskSimpleGrabbedReach::StartAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
-        ANIMATION_IGNORE_ROOT_TRANSLATION, 
+        ANIMATION_FREEZE_TRANSLATION,
         GrabAnimations::START_BLEND_DELTA
     );
 
@@ -180,7 +180,7 @@ void CTaskSimpleGrabbedReach::PositionVictim(CPed* ped) const
     }
 
     CVector grabberPos = grabber->GetPosition();
-    float heading = grabber->m_fCurrentRotation;
+    float heading = grabber->m_fHeadingCurrent;
     
     float sinH = std::sin(heading);
     float cosH = std::cos(heading);
@@ -200,8 +200,8 @@ void CTaskSimpleGrabbedReach::PositionVictim(CPed* ped) const
     while (victimHeading > pi) victimHeading -= twoPi;
     while (victimHeading < -pi) victimHeading += twoPi;
     
-    ped->m_fCurrentRotation = victimHeading;
-    ped->m_fAimingRotation = victimHeading;
+    ped->m_fHeadingCurrent = victimHeading;
+    ped->m_fHeadingGoal = victimHeading;
 }
 
 void CTaskSimpleGrabbedReach::AnimFinishedCB(CAnimBlendAssociation*, void* data)

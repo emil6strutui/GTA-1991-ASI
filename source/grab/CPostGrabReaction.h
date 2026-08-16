@@ -10,6 +10,10 @@
  */
 namespace CPostGrabReaction
 {
+    // Native SA 1.0 US body-part IDs. plugin-sdk's ePedPieceTypes is empty.
+    inline constexpr uint8_t kPedPieceTorso = 3;
+    inline constexpr uint8_t kPedPieceMidsection = 4;
+
     bool ApplyDamageWithoutReaction(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak);
     bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, bool bSpeak);
     bool QueueDamageEvent(CPed* victim, CPed* attacker, float damage, uint8_t bodyPart, uint8_t direction, bool forceFallDown, bool bSpeak);

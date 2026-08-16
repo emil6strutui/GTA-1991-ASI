@@ -156,7 +156,7 @@ void CTaskSimpleGrabbedHit::StartAnimation(CPed* ped)
     m_pAnim = CAnimManager::BlendAnimation(
         ped->m_pRwClump, 
         hier, 
-        ANIMATION_IS_PARTIAL | ANIMATION_IS_BLEND_AUTO_REMOVE | ANIMATION_IGNORE_ROOT_TRANSLATION,
+        ANIMATION_PARTIAL | ANIMATION_FREEZE_LAST_FRAME | ANIMATION_FREEZE_TRANSLATION,
         4.0f
     );
 
@@ -204,7 +204,7 @@ void CTaskSimpleGrabbedHit::CheckDamageTrigger(CPed* ped)
         ped,
         grabber,
         damage,
-        PED_PIECE_ASS,
+        CPostGrabReaction::kPedPieceMidsection,
         true
     );
 }
@@ -254,7 +254,7 @@ void CTaskSimpleGrabbedHit::PositionVictim(CPed* ped) const
     }
 
     CVector grabberPos = grabber->GetPosition();
-    float heading = grabber->m_fCurrentRotation;
+    float heading = grabber->m_fHeadingCurrent;
     
     float sinH = std::sin(heading);
     float cosH = std::cos(heading);
@@ -274,8 +274,8 @@ void CTaskSimpleGrabbedHit::PositionVictim(CPed* ped) const
     while (victimHeading > pi) victimHeading -= twoPi;
     while (victimHeading < -pi) victimHeading += twoPi;
     
-    ped->m_fCurrentRotation = victimHeading;
-    ped->m_fAimingRotation = victimHeading;
+    ped->m_fHeadingCurrent = victimHeading;
+    ped->m_fHeadingGoal = victimHeading;
 }
 
 const char* CTaskSimpleGrabbedHit::GetAnimationName() const
