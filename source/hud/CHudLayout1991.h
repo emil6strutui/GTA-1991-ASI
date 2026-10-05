@@ -29,8 +29,7 @@ struct CHudLayout1991 {
     float barHeight = 7.0f;
     float barBorderWidth = 2.0f;
     float barSpacing = 1.8f;            // gap between bars
-    int barSegments = 11;               // semicircle smoothness (higher = smoother)
-    int barCapSlices = 8;               // partial fill smoothness
+    // Curve smoothness and edge anti-aliasing are set in CDrawing1991.h.
 
     // Stat bars - colors
     CRGBA healthFG = CRGBA(0, 104, 131, 255);
