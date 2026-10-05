@@ -77,47 +77,29 @@ namespace CHud1991
     static void DrawRoundedBar(float x, float y, float w, float h, float percent,
                                CRGBA fg, CRGBA bg)
     {
-        constexpr float pi = 3.14159265358979323846f;
-        float r = h / 2.0f;
-        float body = w - h;
-
         percent = std::clamp(percent, 0.0f, 100.0f);
 
         Drawing::SetupRenderState();
 
-        // Background pill
-        Drawing::Semicircle(x + r, y + r, r, pi * 0.5f, pi * 1.5f, HudLayout.barSegments, bg);
-        if (body > 0)
-            Drawing::FilledRect(x + r, y, body, h, bg);
-        Drawing::Semicircle(x + w - r, y + r, r, -pi * 0.5f, pi * 0.5f, HudLayout.barSegments, bg);
+        // Background and fill share one outline, so their edges match exactly.
+        Drawing::Outline bar;
+        Drawing::PillOutline(bar, x, y, w, h);
 
-        // Foreground fill
-        if (percent > 0)
+        if (percent >= 100.0f)
         {
-            float fill = w * (percent / 100.0f);
+            // The fill covers the whole bar. Drawing the background under it
+            // would double the opacity of translucent colours.
+            Drawing::FillConvex(bar, fg);
+            return;
+        }
 
-            // Left cap
-            if (fill >= r * 0.99f)
-            {
-                Drawing::Semicircle(x + r, y + r, r, pi * 0.5f, pi * 1.5f, HudLayout.barSegments, fg);
-            }
-            else if (fill > 0)
-            {
-                Drawing::PartialLeftCapFill(x + r, y + r, r, fill, HudLayout.barCapSlices, fg);
-            }
+        Drawing::FillConvex(bar, bg);
 
-            // Body
-            if (fill > r && body > 0)
-            {
-                float bodyFill = std::min(fill - r, body);
-                Drawing::FilledRect(x + r, y, bodyFill, h, fg);
-            }
-
-            // Right cap
-            if (fill > w - r)
-            {
-                Drawing::PartialRightCapFill(x + w - r, y + r, r, fill - (w - r), HudLayout.barCapSlices, fg);
-            }
+        if (percent > 0.0f)
+        {
+            Drawing::Outline fill;
+            Drawing::ClipOutlineLeftOf(bar, x + w * (percent / 100.0f), fill);
+            Drawing::FillConvex(fill, fg);
         }
     }
 
@@ -139,7 +121,7 @@ namespace CHud1991
 
     static bool IsFrontendMapDrawing()
     {
-        return *reinterpret_cast<bool *>(0xBA67A1);
+        return FrontEndMenuManager.m_bDrawRadarOrMap;
     }
 
     static RadarViewportGeometry GetRadarViewportGeometry()
@@ -197,10 +179,9 @@ namespace CHud1991
 
         if (IsFrontendMapDrawing())
         {
-            float zoom = *reinterpret_cast<float *>(0xBA67AC);
-            const CVector2D &origin = *reinterpret_cast<CVector2D *>(0xBA67B0);
-            out->x = origin.x + zoom * in->x;
-            out->y = origin.y - zoom * in->y;
+            float zoom = FrontEndMenuManager.m_fMapZoom;
+            out->x = FrontEndMenuManager.m_fMapBaseX + zoom * in->x;
+            out->y = FrontEndMenuManager.m_fMapBaseY - zoom * in->y;
             return;
         }
 
@@ -464,7 +445,7 @@ namespace CHud1991
             float inset = h * 0.22f;
             float highlightHeight = std::max(h * 0.16f, 1.0f);
             CRGBA highlight = ModulateHudColor(CRGBA(255, 255, 255, 105), brightness, alpha);
-            Drawing::FilledRect(x + inset, y + inset, w - inset * 2.0f, highlightHeight, highlight);
+            CSprite2d::DrawRect(CRect(x + inset, y + inset, x + w - inset, y + inset + highlightHeight), highlight);
         }
     }
 
@@ -517,31 +498,24 @@ namespace CHud1991
             height,
             radius,
             border,
-            HudLayout.barSegments,
             HudLayout.radarHousing,
             HudLayout.radarHousingEdge
         );
 
-        Drawing::FilledRect(
-            geometry.mapLeft,
-            geometry.mapTop,
-            geometry.mapRight - geometry.mapLeft,
-            geometry.mapBottom - geometry.mapTop,
+        CSprite2d::DrawRect(
+            CRect(geometry.mapLeft, geometry.mapTop, geometry.mapRight, geometry.mapBottom),
             CRGBA(0, 0, 0, 255)
         );
     }
 
-    static float GetWantedDisplayAlpha(int level, int parole)
-    {
-        int state = *reinterpret_cast<int *>(0xBAA400);
-        int fadeTimer = *reinterpret_cast<int *>(0xBAA408);
-        bool isVisible = *reinterpret_cast<bool *>(0xBAB228);
+    // Alpha for lit wanted lights. UpdateWantedDisplay, which replaces
+    // CHud::DrawWanted, sets it each frame before the radar is drawn.
+    static float WantedDisplayAlpha = 255.0f;
 
-        if (state == 0 || (level <= 0 && !isVisible && parole <= 0))
-            return 0.0f;
-        if (state == 1)
-            return 255.0f;
-        return std::clamp(fadeTimer * 0.255f, 0.0f, 255.0f);
+    static float GetWantedDisplayAlpha()
+    {
+        // CHud::DrawWanted draws nothing while the display is faded out.
+        return CHud::m_WantedState == 0 ? 0.0f : WantedDisplayAlpha;
     }
 
     static void DrawWantedSirenBar(const RadarUnitGeometry &geometry)
@@ -575,7 +549,7 @@ namespace CHud1991
         CWanted *wanted = FindPlayerWanted(-1);
         int level = wanted ? std::clamp(static_cast<int>(wanted->m_nWantedLevel), 0, lightCount) : 0;
         int parole = wanted ? std::clamp(static_cast<int>(wanted->m_nWantedLevelBeforeParole), 0, lightCount) : 0;
-        float alpha = GetWantedDisplayAlpha(level, parole);
+        float alpha = GetWantedDisplayAlpha();
 
         uint32_t timeSinceChange = wanted
             ? CTimer::m_snTimeInMilliseconds - wanted->m_nLastTimeWantedLevelChanged
@@ -641,7 +615,7 @@ namespace CHud1991
         if (drawHousing)
             DrawRadarHousingBack(geometry);
 
-        reinterpret_cast<void(__cdecl *)()>(0x58A330)();
+        CHud::DrawRadar();
 
         if (drawHousing)
             DrawRadarHousingFront(geometry);
@@ -680,7 +654,7 @@ namespace CHud1991
         int x = static_cast<int>(Screen::FromRight(HudLayout.weaponRightMargin));
         int y = static_cast<int>(Screen::StretchY(GetWeaponY()));
 
-        reinterpret_cast<void(__cdecl *)(CPed *, int, int, float)>(0x58D7D0)(ped, x, y, alpha);
+        CHud::DrawWeaponIcon(ped, x, y, alpha);
     }
 
     static void __cdecl DrawAmmo(CPed *ped, int, int, float alpha)
@@ -691,7 +665,7 @@ namespace CHud1991
         int x = static_cast<int>(Screen::FromRight(HudLayout.weaponRightMargin - HudLayout.weaponWidth / 2.0f));
         int y = static_cast<int>(Screen::StretchY(GetAmmoY()));
 
-        reinterpret_cast<void(__cdecl *)(CPed *, int, int, float)>(0x5893B0)(ped, x, y, alpha);
+        CHud::DrawAmmo(ped, x, y, alpha);
     }
 
     static void __cdecl DrawHealthBar(int playerId, int, int)
@@ -723,15 +697,19 @@ namespace CHud1991
                                  HudLayout.healthFG, HudLayout.healthBG, border, HudLayout.barBorderColor);
     }
 
+    // Same armour threshold as CHud::RenderArmorBar. Flashing is left out so the
+    // breath bar below does not jump between slots while the armour bar blinks.
+    static bool IsArmorBarShown(const CPlayerPed *player)
+    {
+        return HudLayout.showArmorBar && player->m_fArmour > 1.0f;
+    }
+
     static void __cdecl DrawArmorBar(int playerId, int, int)
     {
-        if (!HudLayout.showArmorBar)
-            return;
-
         CPlayerPed *player = FindPlayerPed(playerId);
-        if (!player)
+        if (!player || !IsArmorBarShown(player))
             return;
-        if ((CHud::m_ItemToFlash == 3 && (CTimer::m_FrameCounter & 8)) || player->m_fArmour <= 1.0f)
+        if (CHud::m_ItemToFlash == 3 && (CTimer::m_FrameCounter & 8))
             return;
 
         float maxArmor = static_cast<float>(CWorld::Players[playerId].m_nMaxArmour);
@@ -765,7 +743,7 @@ namespace CHud1991
             maxBreath = 100.0f;
 
         // Slot 2 if armor visible, slot 1 if not
-        int slot = (player->m_fArmour > 0.0f) ? 2 : 1;
+        int slot = IsArmorBarShown(player) ? 2 : 1;
 
         float w = Screen::StretchY(HudLayout.barWidth);
         float h = Screen::StretchY(HudLayout.barHeight);
@@ -777,6 +755,48 @@ namespace CHud1991
                                  HudLayout.breathFG, HudLayout.breathBG, border, HudLayout.barBorderColor);
     }
 
+    // One frame of the wanted display fade, as CHud::DrawWanted (0x58D9A0,
+    // 1.0 US) does it: 1 shown, 2 fading in, 3 fading out to 0 (hidden).
+    // Returns the display alpha.
+    static float StepWantedFade(int &state, int &fadeTimer, int &timer, int step)
+    {
+        float alpha = 255.0f;
+        switch (state)
+        {
+        case 1: // Shown; starts fading out after 10 seconds
+            fadeTimer = 1000;
+            if (timer > 10000)
+            {
+                state = 3;
+                fadeTimer = 3000;
+            }
+            break;
+        case 2: // Fade in
+            fadeTimer += step;
+            if (fadeTimer > 1000)
+            {
+                fadeTimer = 1000;
+                state = 1;
+            }
+            alpha = fadeTimer * 0.255f;
+            break;
+        case 3: // Fade out
+            fadeTimer -= step;
+            if (fadeTimer < 0)
+            {
+                fadeTimer = 0;
+                state = 0;
+            }
+            alpha = fadeTimer * 0.255f;
+            break;
+        }
+        timer += step;
+        return std::clamp(alpha, 0.0f, 255.0f);
+    }
+
+    // Replaces CHud::DrawWanted; the sirens are drawn with the radar instead.
+    // CHud::ReInitialise sets the state to 5, which the game never fades and
+    // nothing else changes, so the display normally stays fully visible.
     static void __cdecl UpdateWantedDisplay()
     {
         CWanted *wanted = FindPlayerWanted(-1);
@@ -784,15 +804,13 @@ namespace CHud1991
             return;
 
         int level = std::clamp(static_cast<int>(wanted->m_nWantedLevel), 0, 6);
+        int state = CHud::m_WantedState;
+        int fadeTimer = CHud::m_WantedFadeTimer;
+        int timer = CHud::m_WantedTimer;
 
-        // Fade state machine (game statics)
-        static int &state = *(int *)0xBAA400;
-        static int &timer = *(int *)0xBAA404;
-        static int &fadeTimer = *(int *)0xBAA408;
-        static int &lastLevel = *(int *)0xBAA40C;
-        static bool &isVisible = *(bool *)0xBAB228;
-
-        if (lastLevel != level)
+        // A new level restarts the fade-in, except in state 5 or while the
+        // display is already fading in.
+        if (CHud::m_LastWanted != level && (state == 0 || state == 1 || state == 3))
         {
             if (state == 0)
                 fadeTimer = 0;
@@ -800,44 +818,18 @@ namespace CHud1991
             state = 2;
         }
 
-        if (state)
-        {
-            int step = static_cast<int>(CTimer::ms_fTimeStep * 20.0f);
+        // Same expression as the game, so the timers round identically.
+        int step = static_cast<int>(CTimer::ms_fTimeStep * 0.02 * 1000.0);
 
-            switch (state)
-            {
-            case 1: // Visible
-                fadeTimer = 1000;
-                if (timer > 10000)
-                {
-                    state = 3;
-                    fadeTimer = 3000;
-                }
-                timer += step;
-                break;
-            case 2: // Fade in
-                fadeTimer += step;
-                if (fadeTimer > 1000)
-                {
-                    fadeTimer = 1000;
-                    state = 1;
-                }
-                timer += step;
-                break;
-            case 3: // Fade out
-                fadeTimer -= step;
-                if (fadeTimer < 0)
-                {
-                    fadeTimer = 0;
-                    state = 0;
-                }
-                timer += step;
-                break;
-            }
-            isVisible = (state == 1);
-        }
+        float alpha = 255.0f;
+        if (state != 0 && state != 5)
+            alpha = StepWantedFade(state, fadeTimer, timer, step);
 
-        lastLevel = level;
+        CHud::m_WantedState = state;
+        CHud::m_WantedFadeTimer = fadeTimer;
+        CHud::m_WantedTimer = timer;
+        CHud::m_LastWanted = level;
+        WantedDisplayAlpha = alpha;
     }
 
     void InstallHooks()
